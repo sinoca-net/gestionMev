@@ -1,0 +1,1303 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>⚖️ Gestor MEV — Expedientes Judiciales</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.0/chart.umd.min.js"></script>
+<style>
+* { margin:0; padding:0; box-sizing:border-box; }
+:root {
+  --primary:#1e3a5f; --primary-light:#2d5a8e; --accent:#c9a84c;
+  --danger:#dc2626; --warning:#d97706; --success:#16a34a;
+  --bg:#f0f4f8; --card:#fff; --text:#1a202c; --muted:#6b7280;
+  --border:#e5e7eb; --sw:240px;
+}
+body { font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif; background:var(--bg); color:var(--text); display:flex; min-height:100vh; }
+
+/* SIDEBAR */
+.sidebar { width:var(--sw); background:var(--primary); color:#fff; display:flex; flex-direction:column; position:fixed; top:0;left:0;bottom:0; z-index:100; }
+.brand { padding:20px; border-bottom:1px solid rgba(255,255,255,.1); }
+.brand h1 { font-size:17px; font-weight:800; color:var(--accent); }
+.brand p { font-size:11px; opacity:.6; margin-top:3px; }
+.nav { padding:12px 0; flex:1; overflow-y:auto; }
+.nav-section { padding:10px 18px 4px; font-size:10px; text-transform:uppercase; letter-spacing:1px; opacity:.45; font-weight:700; }
+.nav-item { display:flex; align-items:center; gap:10px; padding:10px 20px; cursor:pointer; font-size:13.5px; border-left:3px solid transparent; transition:all .15s; }
+.nav-item:hover { background:rgba(255,255,255,.07); }
+.nav-item.active { background:rgba(201,168,76,.15); border-left-color:var(--accent); color:var(--accent); }
+.nav-icon { font-size:15px; width:18px; text-align:center; }
+.sidebar-foot { padding:14px 18px; border-top:1px solid rgba(255,255,255,.1); font-size:11px; opacity:.55; }
+
+/* MAIN */
+.main { margin-left:var(--sw); flex:1; display:flex; flex-direction:column; }
+.topbar { background:#fff; border-bottom:1px solid var(--border); padding:13px 28px; display:flex; align-items:center; justify-content:space-between; position:sticky; top:0; z-index:50; box-shadow:0 1px 4px rgba(0,0,0,.05); }
+.topbar-title { font-size:17px; font-weight:800; color:var(--primary); }
+.topbar-right { display:flex; gap:10px; align-items:center; }
+.topbar-date { font-size:12px; color:var(--muted); }
+.content { padding:24px 28px; flex:1; }
+
+/* PAGE SYSTEM */
+.page { display:none; }
+.page.active { display:block; }
+
+/* BUTTONS */
+.btn { padding:8px 14px; border-radius:8px; font-size:13px; font-weight:600; cursor:pointer; border:none; display:inline-flex; align-items:center; gap:6px; transition:all .15s; }
+.btn-primary { background:var(--primary); color:#fff; }
+.btn-primary:hover { background:var(--primary-light); }
+.btn-accent { background:var(--accent); color:#fff; }
+.btn-accent:hover { background:#b8962e; }
+.btn-danger { background:var(--danger); color:#fff; }
+.btn-success { background:var(--success); color:#fff; }
+.btn-outline { background:#fff; color:var(--primary); border:1px solid var(--border); }
+.btn-outline:hover { background:var(--bg); }
+.btn-sm { padding:5px 10px; font-size:12px; }
+
+/* CARDS */
+.card { background:#fff; border-radius:12px; border:1px solid var(--border); padding:20px; box-shadow:0 1px 3px rgba(0,0,0,.05); }
+.card-title { font-size:11px; font-weight:700; text-transform:uppercase; letter-spacing:.6px; color:var(--muted); margin-bottom:14px; }
+
+/* STAT CARDS */
+.stats-grid { display:grid; grid-template-columns:repeat(auto-fit,minmax(155px,1fr)); gap:14px; margin-bottom:22px; }
+.stat-card { background:#fff; border-radius:12px; padding:18px; border:1px solid var(--border); border-left:4px solid; box-shadow:0 1px 3px rgba(0,0,0,.05); cursor:pointer; transition:box-shadow .15s; }
+.stat-card:hover { box-shadow:0 4px 12px rgba(0,0,0,.1); }
+.stat-card.c-red { border-left-color:var(--danger); }
+.stat-card.c-yellow { border-left-color:var(--warning); }
+.stat-card.c-green { border-left-color:var(--success); }
+.stat-card.c-blue { border-left-color:#3b82f6; }
+.stat-card.c-purple { border-left-color:#8b5cf6; }
+.stat-card.c-gray { border-left-color:#94a3b8; }
+.stat-label { font-size:11.5px; color:var(--muted); font-weight:500; margin-bottom:6px; }
+.stat-value { font-size:34px; font-weight:900; line-height:1; }
+.stat-card.c-red .stat-value { color:var(--danger); }
+.stat-card.c-yellow .stat-value { color:var(--warning); }
+.stat-card.c-green .stat-value { color:var(--success); }
+.stat-card.c-blue .stat-value { color:#3b82f6; }
+.stat-card.c-purple .stat-value { color:#8b5cf6; }
+.stat-card.c-gray .stat-value { color:#94a3b8; }
+.stat-sub { font-size:11px; color:var(--muted); margin-top:3px; }
+
+/* GRID */
+.g2 { display:grid; grid-template-columns:1fr 1fr; gap:20px; }
+.g3 { display:grid; grid-template-columns:1fr 1fr 1fr; gap:16px; }
+.mb16 { margin-bottom:16px; }
+.mb24 { margin-bottom:22px; }
+
+/* SECTION HEADER */
+.sec-header { display:flex; justify-content:space-between; align-items:center; margin-bottom:14px; }
+.sec-title { font-size:15px; font-weight:800; color:var(--primary); }
+
+/* BADGES */
+.badge { display:inline-flex; align-items:center; padding:3px 9px; border-radius:20px; font-size:11px; font-weight:700; white-space:nowrap; }
+.b-red { background:#fee2e2; color:#991b1b; }
+.b-yellow { background:#fef3c7; color:#92400e; }
+.b-green { background:#dcfce7; color:#166534; }
+.b-blue { background:#dbeafe; color:#1e40af; }
+.b-purple { background:#ede9fe; color:#6d28d9; }
+.b-gray { background:#f1f5f9; color:#475569; }
+
+/* TABLE */
+.table-wrap { overflow-x:auto; border-radius:12px; border:1px solid var(--border); background:#fff; }
+table { width:100%; border-collapse:collapse; font-size:12.5px; }
+thead th { background:#f8fafc; padding:11px 14px; text-align:left; font-size:10.5px; text-transform:uppercase; letter-spacing:.5px; color:var(--muted); font-weight:700; border-bottom:1px solid var(--border); cursor:pointer; user-select:none; white-space:nowrap; }
+thead th:hover { background:#f1f5f9; }
+tbody tr { border-bottom:1px solid var(--border); transition:background .1s; cursor:pointer; }
+tbody tr:hover { background:#f8fafc; }
+tbody tr:last-child { border-bottom:none; }
+tbody td { padding:11px 14px; vertical-align:middle; }
+tr.prio-alta td:first-child { border-left:3px solid var(--danger); }
+tr.prio-media td:first-child { border-left:3px solid var(--warning); }
+
+/* FILTERS */
+.filters { display:flex; gap:10px; align-items:center; flex-wrap:wrap; margin-bottom:14px; }
+.fi { padding:7px 11px; border:1px solid var(--border); border-radius:8px; font-size:12.5px; background:#fff; color:var(--text); outline:none; }
+.fi:focus { border-color:var(--primary-light); }
+.fi-search { min-width:200px; }
+
+/* DIAS BADGE */
+.d-ok { color:var(--success); font-weight:700; font-size:11px; }
+.d-warn { color:var(--warning); font-weight:700; font-size:11px; }
+.d-danger { color:var(--danger); font-weight:700; font-size:11px; }
+
+/* URGENTES LIST */
+.urgente { display:flex; gap:10px; padding:11px 12px; background:#fff; border:1px solid var(--border); border-radius:8px; margin-bottom:7px; cursor:pointer; border-left:4px solid var(--danger); transition:box-shadow .15s; }
+.urgente:hover { box-shadow:0 2px 8px rgba(0,0,0,.08); }
+.urgente.media { border-left-color:var(--warning); }
+.u-juz { background:var(--primary); color:#fff; border-radius:5px; padding:3px 8px; font-size:11px; font-weight:800; align-self:flex-start; white-space:nowrap; }
+.u-body { flex:1; min-width:0; }
+.u-car { font-size:12px; font-weight:700; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+.u-task { font-size:11px; color:var(--muted); margin-top:2px; }
+
+/* CHART */
+.chart-box { position:relative; height:195px; }
+
+/* PROXIMOS */
+.prox-item { display:flex; align-items:center; gap:10px; padding:8px 0; border-bottom:1px solid var(--border); cursor:pointer; }
+.prox-item:last-child { border-bottom:none; }
+
+/* DETAIL PANEL */
+.panel { position:fixed; top:0;right:0;bottom:0; width:460px; background:#fff; border-left:1px solid var(--border); z-index:200; display:flex; flex-direction:column; box-shadow:-6px 0 24px rgba(0,0,0,.1); transform:translateX(100%); transition:transform .25s; }
+.panel.open { transform:translateX(0); }
+.panel-head { padding:18px 20px; background:var(--primary); color:#fff; position:relative; }
+.panel-close { position:absolute; top:14px; right:14px; width:30px; height:30px; border-radius:7px; border:1px solid rgba(255,255,255,.3); background:transparent; color:#fff; cursor:pointer; font-size:15px; }
+.panel-juz { font-size:10px; opacity:.65; margin-bottom:3px; }
+.panel-car { font-size:14px; font-weight:800; line-height:1.3; padding-right:36px; }
+.panel-badges { margin-top:8px; display:flex; gap:6px; flex-wrap:wrap; }
+.panel-body { flex:1; overflow-y:auto; padding:18px 20px; }
+.panel-foot { padding:14px 20px; border-top:1px solid var(--border); display:flex; gap:7px; }
+
+.info-row { display:flex; margin-bottom:10px; }
+.info-lbl { font-size:11px; font-weight:700; text-transform:uppercase; color:var(--muted); width:110px; flex-shrink:0; padding-top:1px; }
+.info-val { font-size:13px; }
+
+.mov-item { border-left:3px solid var(--primary-light); padding:9px 13px; margin-bottom:10px; background:#f8fafc; border-radius:0 8px 8px 0; }
+.mov-fecha { font-size:10.5px; color:var(--muted); font-weight:700; margin-bottom:3px; }
+.mov-desc { font-size:12.5px; line-height:1.5; }
+.tarea-item { display:flex; gap:7px; padding:7px 9px; background:#fff8f0; border:1px solid #fed7aa; border-radius:6px; margin-bottom:5px; font-size:12.5px; }
+
+/* INFORME CARD */
+.informe-card { background:#fff; border:1px solid var(--border); border-radius:10px; padding:16px; margin-bottom:10px; transition:box-shadow .15s, border-color .15s; cursor:pointer; }
+.informe-card:hover { box-shadow:0 4px 14px rgba(0,0,0,.1); border-color:#94a3b8; }
+.informe-card-actions { display:flex; gap:7px; margin-top:12px; padding-top:10px; border-top:1px solid var(--border); }
+
+/* JUZGADOS GRID */
+.juz-grid { display:grid; grid-template-columns:repeat(auto-fit,minmax(185px,1fr)); gap:12px; }
+.juz-card { background:#fff; border-radius:10px; border:1px solid var(--border); padding:16px; cursor:pointer; transition:all .15s; }
+.juz-card:hover { border-color:var(--primary-light); box-shadow:0 2px 10px rgba(0,0,0,.1); }
+.juz-name { font-weight:800; color:var(--primary); margin-bottom:6px; font-size:13px; }
+.juz-count { font-size:30px; font-weight:900; color:var(--primary); }
+.juz-stats { font-size:11.5px; color:var(--muted); margin-top:4px; }
+
+/* MODAL */
+.overlay { position:fixed; inset:0; background:rgba(0,0,0,.5); z-index:1000; display:flex; align-items:center; justify-content:center; padding:20px; }
+.modal { background:#fff; border-radius:16px; padding:26px; width:100%; max-width:680px; max-height:90vh; overflow-y:auto; box-shadow:0 20px 60px rgba(0,0,0,.25); }
+.modal-head { display:flex; justify-content:space-between; align-items:center; margin-bottom:20px; }
+.modal-title { font-size:17px; font-weight:800; color:var(--primary); }
+.modal-x { width:30px;height:30px; border-radius:7px; border:1px solid var(--border); background:#fff; cursor:pointer; font-size:15px; }
+
+/* FORM */
+.fg { display:flex; flex-direction:column; gap:5px; }
+.fg-label { font-size:11px; font-weight:700; text-transform:uppercase; letter-spacing:.4px; color:var(--muted); }
+.fi2 { padding:9px 11px; border:1px solid var(--border); border-radius:8px; font-size:13px; color:var(--text); outline:none; width:100%; background:#fff; }
+.fi2:focus { border-color:var(--primary-light); }
+.fgrid { display:grid; grid-template-columns:1fr 1fr; gap:14px; }
+.fgrid .full { grid-column:1/-1; }
+textarea.fi2 { resize:vertical; min-height:75px; }
+
+/* IMPORT */
+.import-area { width:100%; height:280px; border:2px dashed var(--border); border-radius:8px; padding:12px; font-size:12px; font-family:monospace; resize:none; outline:none; }
+.import-area:focus { border-color:var(--primary-light); }
+
+/* SCROLLBAR */
+::-webkit-scrollbar { width:5px; height:5px; }
+::-webkit-scrollbar-thumb { background:#cbd5e1; border-radius:3px; }
+
+/* EMPTY */
+.empty { text-align:center; padding:48px 20px; color:var(--muted); }
+.empty-icon { font-size:44px; margin-bottom:10px; }
+
+.summary-txt { font-size:12px; color:var(--muted); margin-bottom:10px; }
+
+/* REGISTRO */
+.reg-card { background:#fff; border-radius:12px; border:1px solid var(--border); padding:20px; margin-bottom:20px; }
+.mov-hoy { background:#fff; border:1px solid var(--border); border-radius:8px; padding:13px; margin-bottom:8px; }
+
+@media print { .sidebar,.topbar { display:none; } .main { margin-left:0; } }
+</style>
+</head>
+<body>
+
+<!-- ===== SIDEBAR ===== -->
+<aside class="sidebar">
+  <div class="brand">
+    <h1>⚖️ Gestor MEV</h1>
+    <p>Sistema de Expedientes Judiciales</p>
+  </div>
+  <nav class="nav">
+    <div class="nav-section">Principal</div>
+    <div class="nav-item active" onclick="nav('dashboard')"><span class="nav-icon">🏠</span> Dashboard</div>
+    <div class="nav-item" onclick="nav('expedientes')"><span class="nav-icon">📁</span> Expedientes</div>
+    <div class="nav-item" onclick="nav('juzgados')"><span class="nav-icon">🏛️</span> Por Juzgado</div>
+    <div class="nav-section">Trabajo diario</div>
+    <div class="nav-item" onclick="nav('registro')"><span class="nav-icon">📝</span> Registro Diario</div>
+    <div class="nav-section">Sistema</div>
+    <div class="nav-item" onclick="nav('config')"><span class="nav-icon">⚙️</span> Configuración</div>
+  </nav>
+  <div class="sidebar-foot">
+    <div id="sb-total">Cargando...</div>
+    <div style="margin-top:3px;">Hoy: <span id="sb-fecha"></span></div>
+  </div>
+</aside>
+
+<!-- ===== MAIN ===== -->
+<main class="main">
+  <div class="topbar">
+    <div class="topbar-title" id="page-title">📊 Dashboard</div>
+    <div class="topbar-right">
+      <div class="topbar-date" id="topbar-date"></div>
+      <button class="btn btn-accent btn-sm" onclick="openModal('nuevo')">➕ Nuevo Expediente</button>
+    </div>
+  </div>
+
+  <div class="content">
+
+    <!-- DASHBOARD -->
+    <div id="page-dashboard" class="page active">
+      <!-- Date nav bar -->
+      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:20px;flex-wrap:wrap;gap:10px;">
+        <div style="display:flex;align-items:center;gap:10px;">
+          <button class="btn btn-outline btn-sm" onclick="dashNavDate(-1)">← Día anterior</button>
+          <input type="date" class="fi" id="dash-fecha" onchange="renderDash()" style="font-weight:700;color:var(--primary);">
+          <button class="btn btn-outline btn-sm" onclick="dashNavDate(1)">Día siguiente →</button>
+          <button class="btn btn-outline btn-sm" onclick="document.getElementById('dash-fecha').value=today();renderDash()">Hoy</button>
+        </div>
+        <div style="display:flex;gap:8px;">
+          <button class="btn btn-success btn-sm" onclick="exportarInforme()">📤 Exportar informe</button>
+          <button class="btn btn-accent btn-sm" onclick="exportarInformeTexto()">📋 Copiar como texto</button>
+        </div>
+      </div>
+      <!-- Resumen del día -->
+      <div id="dash-resumen" style="margin-bottom:18px;"></div>
+      <!-- Layout: informe + sidebar -->
+      <div style="display:grid;grid-template-columns:1fr 300px;gap:20px;align-items:start;">
+        <div id="dash-informe"></div>
+        <div>
+          <!-- Próximos vencimientos -->
+          <div class="card" style="position:sticky;top:80px;">
+            <div class="card-title">📅 Próximos vencimientos y audiencias</div>
+            <div id="proximos-list"></div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- EXPEDIENTES -->
+    <div id="page-expedientes" class="page">
+      <div class="filters">
+        <input type="text" class="fi fi-search" id="f-search" placeholder="🔍  Buscar carátula, número, cliente..." oninput="renderTable()">
+        <select class="fi" id="f-juzgado" onchange="renderTable()"><option value="">Todos los juzgados</option></select>
+        <select class="fi" id="f-estado" onchange="renderTable()"><option value="">Todos los estados</option></select>
+        <select class="fi" id="f-prioridad" onchange="renderTable()">
+          <option value="">Toda prioridad</option>
+          <option value="Alta">🔴 Alta</option>
+          <option value="Media">🟡 Media</option>
+          <option value="Baja">🟢 Baja</option>
+        </select>
+        <select class="fi" id="f-tipo" onchange="renderTable()"><option value="">Todos los tipos</option></select>
+        <button class="btn btn-outline btn-sm" onclick="clearFilters()">✕ Limpiar</button>
+        <button class="btn btn-primary btn-sm" onclick="openModal('nuevo')">➕ Nuevo</button>
+      </div>
+      <div class="summary-txt" id="tbl-summary"></div>
+      <div class="table-wrap">
+        <table>
+          <thead>
+            <tr>
+              <th onclick="sort('juzgado')">Juzgado ↕</th>
+              <th onclick="sort('caratula')">Carátula</th>
+              <th onclick="sort('tipo')">Tipo</th>
+              <th onclick="sort('estado')">Estado</th>
+              <th onclick="sort('prioridad')">Prioridad ↕</th>
+              <th onclick="sort('ultimoMov')">Últ. Movimiento ↕</th>
+              <th>Sin revisión</th>
+              <th></th>
+            </tr>
+          </thead>
+          <tbody id="tbl-body"></tbody>
+        </table>
+      </div>
+    </div>
+
+    <!-- JUZGADOS -->
+    <div id="page-juzgados" class="page">
+      <div class="juz-grid" id="juz-grid"></div>
+    </div>
+
+    <!-- REGISTRO -->
+    <div id="page-registro" class="page">
+      <div class="reg-card">
+        <div class="card-title">📝 Cargar movimiento del día</div>
+        <div class="fgrid" style="margin-bottom:14px;">
+          <div class="fg full">
+            <label class="fg-label">Expediente *</label>
+            <select class="fi2" id="r-exp"><option value="">Seleccionar expediente...</option></select>
+          </div>
+          <div class="fg">
+            <label class="fg-label">Fecha</label>
+            <input type="date" class="fi2" id="r-fecha">
+          </div>
+          <div class="fg">
+            <label class="fg-label">Vencimiento / Audiencia</label>
+            <input type="date" class="fi2" id="r-venc">
+          </div>
+          <div class="fg full">
+            <label class="fg-label">Descripción del movimiento *</label>
+            <textarea class="fi2" id="r-desc" placeholder="Ej: Juzgado corre traslado a la demandada por 5 días..."></textarea>
+          </div>
+          <div class="fg full">
+            <label class="fg-label">Tareas pendientes (una por línea)</label>
+            <textarea class="fi2" id="r-tareas" placeholder="Hacer escrito de contestación&#10;Oficiar al Registro de la Propiedad&#10;Llamar al cliente"></textarea>
+          </div>
+          <div class="fg">
+            <label class="fg-label">Cambiar estado</label>
+            <select class="fi2" id="r-estado"><option value="">Sin cambio</option></select>
+          </div>
+          <div class="fg">
+            <label class="fg-label">Cambiar prioridad</label>
+            <select class="fi2" id="r-prio">
+              <option value="">Sin cambio</option>
+              <option value="Alta">🔴 Alta</option>
+              <option value="Media">🟡 Media</option>
+              <option value="Baja">🟢 Baja</option>
+            </select>
+          </div>
+        </div>
+        <button class="btn btn-primary" onclick="guardarMov()">💾 Guardar movimiento</button>
+      </div>
+      <div class="sec-header">
+        <div class="sec-title">📋 Movimientos registrados hoy</div>
+      </div>
+      <div id="movs-hoy"></div>
+    </div>
+
+    <!-- CONFIG -->
+    <div id="page-config" class="page">
+      <div class="g2">
+        <div class="card">
+          <div class="card-title">🏛️ Juzgados</div>
+          <div id="cfg-juzgados" style="margin-bottom:12px;"></div>
+          <div style="display:flex;gap:7px;">
+            <input type="text" class="fi2" id="nuevo-juz" placeholder="Nombre del juzgado">
+            <button class="btn btn-primary btn-sm" onclick="addJuzgado()">+ Agregar</button>
+          </div>
+        </div>
+        <div class="card">
+          <div class="card-title">📋 Tipos de proceso</div>
+          <div id="cfg-tipos" style="margin-bottom:12px;"></div>
+          <div style="display:flex;gap:7px;">
+            <input type="text" class="fi2" id="nuevo-tipo" placeholder="Tipo de proceso">
+            <button class="btn btn-primary btn-sm" onclick="addTipo()">+ Agregar</button>
+          </div>
+        </div>
+        <div class="card">
+          <div class="card-title">⏰ Alertas</div>
+          <div class="fg" style="margin-bottom:12px;">
+            <label class="fg-label">Alertar sin revisión después de (días)</label>
+            <input type="number" class="fi2" id="cfg-dias-rev" min="1" max="60" onchange="saveConfig()">
+          </div>
+          <div class="fg">
+            <label class="fg-label">Mostrar vencimientos de los próximos (días)</label>
+            <input type="number" class="fi2" id="cfg-dias-venc" min="1" max="60" onchange="saveConfig()">
+          </div>
+        </div>
+        <div class="card">
+          <div class="card-title">🗃️ Datos</div>
+          <div style="display:flex;flex-direction:column;gap:8px;">
+            <button class="btn btn-outline" onclick="exportJSON()">📤 Exportar backup (JSON)</button>
+            <label class="btn btn-outline" style="cursor:pointer;">
+              📥 Importar backup (JSON)
+              <input type="file" accept=".json" style="display:none" onchange="importJSON(event)">
+            </label>
+            <button class="btn btn-sm btn-danger" onclick="borrarTodo()">🗑️ Borrar todos los datos</button>
+          </div>
+        </div>
+      </div>
+    </div>
+
+  </div><!-- /content -->
+</main>
+
+<!-- DETAIL PANEL -->
+<div id="detail-panel" class="panel">
+  <div class="panel-head">
+    <button class="panel-close" onclick="closePanel()">✕</button>
+    <div class="panel-juz" id="p-juz"></div>
+    <div class="panel-car" id="p-car"></div>
+    <div class="panel-badges" id="p-badges"></div>
+  </div>
+  <div class="panel-body" id="p-body"></div>
+  <div class="panel-foot">
+    <button class="btn btn-primary btn-sm" onclick="editarActual()">✏️ Editar</button>
+    <button class="btn btn-accent btn-sm" onclick="irARegistro()">📝 Cargar movimiento</button>
+    <button class="btn btn-sm" style="background:#fee2e2;color:#991b1b;" onclick="eliminarActual()">🗑️</button>
+  </div>
+</div>
+
+<!-- MODAL CONTAINER -->
+<div id="modal-wrap"></div>
+
+<script>
+// ==============================
+// CONSTANTS
+// ==============================
+const ESTADOS = ['Pendiente de acción','A despacho','Sin novedades','Audiencia próxima','Esperando contestación','Esperando resolución','Suspendido','Archivado'];
+const TIPOS_DEF = ['Alimentos','Cuidado personal de hijos','Régimen de comunicación','Atribución vivienda familiar','Incidente de alimentos','Incidente de cuidado personal','Medidas precautorias','Liquidación de régimen patrimonial','Exequátur','Guarda a parientes','Materia a categorizar'];
+const JUZGADOS_DEF = ['Juzgado Nº1 de Familia','Juzgado Nº2 de Familia','Juzgado Nº3 de Familia','Juzgado Nº4 de Familia','Juzgado Nº5 de Familia','Juzgado Nº6 de Familia','Juzgado Nº7 de Familia'];
+
+// ==============================
+// STATE
+// ==============================
+let S = { expedientes:[], juzgados:[...JUZGADOS_DEF], tipos:[...TIPOS_DEF], config:{diasRev:7,diasVenc:14} };
+let sortState = {field:'prioridad',dir:1};
+let selectedId = null;
+let chJ=null, chE=null;
+let curPage = 'dashboard';
+
+// ==============================
+// PERSISTENCE
+// ==============================
+function save() { localStorage.setItem('mev_v2', JSON.stringify(S)); }
+
+function load() {
+  try {
+    const r = localStorage.getItem('mev_v2');
+    if (r) S = {...S,...JSON.parse(r)};
+  } catch(e) {}
+  if (!S.expedientes.length) loadDemo();
+}
+
+// ==============================
+// DEMO DATA (from imported report)
+// ==============================
+function loadDemo() {
+  const hoy = today();
+  const h3 = addDays(-3); const h10 = addDays(-10);
+  const f5 = addDays(5); const f15 = addDays(15); const f89 = addDays(89);
+
+  S.expedientes = [
+    mk('Juzgado Nº1 de Familia','Secretaría 1','EX-2026-1001','CARDOZO GABRIEL ALBERTO C/ MARINO RODRIGUEZ LORENA BETIANA S/ CUIDADO PERSONAL DE HIJOS','Cuidado personal de hijos','Cardozo Gabriel Alberto','Marino Rodriguez Lorena','Alta','Pendiente de acción',hoy,f5,null,'Elena Cardozo en CPJ. Sistema de comunicación paterno filial en curso.',[
+      {fecha:hoy,desc:'El juzgado solicita a las partes: plazo 5 días (hasta 15/07) agregar informes de la terapia que realizan en el CPJ. Sistema de comunicación paterno filial que se encuentran cumpliendo. Juan Pablo Martínez de Irujo renunció el 30/06. La Asesoría Nº2 solicita vista de la Asesoría Nº3.',tareas:['Agregar informes de terapia CPJ (plazo vence 15/07)','Verificar situación Asesoría Nº3 — intervención en causa']}
+    ]),
+    mk('Juzgado Nº2 de Familia','Secretaría 1','EX-2026-2001','URIAGUERECA MAITE C/ PASTORINO MARTIN S/ INCIDENTE DE ALIMENTOS','Incidente de alimentos','Uriaguereca Maite','Pastorino Martín','Alta','A despacho',hoy,null,null,'Habilitan días inhábiles. Atenta a que intervenga la Asesoría.',[
+      {fecha:hoy,desc:'13/07: Se tiene presente lo expuesto para su oportunidad. Se habilitan días y horas inhábiles para las medidas ordenadas. Por contestado el traslado de los fundamentos del recurso. Dese vista a la Asesoría.',tareas:['Atenta a que intervenga la Asesoría o solicitar su intervención si tarda — FISICARO']}
+    ]),
+    mk('Juzgado Nº2 de Familia','Secretaría 2','EX-2026-2002','FISICARO STELLA MARIS C/ MELUCCI GABRIELA LUJAN S/ DERECHO DE COMUNICACION','Régimen de comunicación','Fisicaro Stella Maris','Melucci Gabriela Luján','Media','A despacho',h3,null,null,'',[]),
+    mk('Juzgado Nº2 de Familia','Secretaría 2','EX-2026-2003','RECANATTI GRACIELA VIVIANA ALICIA C/ GARCIA ANTONIO EDUARDO S/ ALIMENTOS','Alimentos','Recanatti Graciela','García Antonio Eduardo','Media','A despacho',h3,null,null,'',[]),
+    mk('Juzgado Nº2 de Familia','Secretaría 1','EX-2026-2004','CIPRIAN ANTONIO C/ NEME MARIA VICTORIA S/ INCIDENTE DE ATRIBUCION DE LA VIVIENDA FAMILIAR','Atribución vivienda familiar','Ciprian Antonio','Neme María Victoria','Media','A despacho',h3,null,null,'',[]),
+    mk('Juzgado Nº2 de Familia','Secretaría 1','EX-2026-2005','METOKI MARIANO GASTON C/ MIRANDA GRISELDA PAOLA S/ CUIDADO PERSONAL DE HIJOS','Cuidado personal de hijos','Metoki Mariano','Miranda Griselda','Media','A despacho',h3,null,null,'',[]),
+    mk('Juzgado Nº2 de Familia','Secretaría 2','EX-2026-2006','ESTEVEZ JIMENA MARIA C/ FRAILE AGUSTIN S/ ALIMENTOS','Alimentos','Estévez Jimena','Fraile Agustín','Media','A despacho',h3,null,null,'',[]),
+    mk('Juzgado Nº2 de Familia','Secretaría 2','EX-2026-2007','BERNARDIS MARCELA NATALIA C/ GANSSLEN FEDERICO S/ MEDIDAS PRECAUTORIAS','Medidas precautorias','Bernardis Marcela','Gansslen Federico','Media','A despacho',h3,null,null,'',[]),
+    mk('Juzgado Nº3 de Familia','Secretaría 1','EX-2026-3001','PEREYRA EVANGELINA C/ SCARPITTA ANDRES S/ ALIMENTOS','Alimentos','Pereyra Evangelina','Scarpitta Andrés','Alta','Pendiente de acción',hoy,null,null,'Levantamiento secreto fiscal. Oficios reiteratorios a clubes deportivos.',[
+      {fecha:hoy,desc:'13/07: Se agrega contestación de oficio del Registro de la Propiedad Inmueble. Pendiente: librar oficios reiteratorios a Club Once Unidos y Club Las Lajas. Disponen levantamiento del secreto fiscal.',tareas:['Hacer oficio al Banco Central (levantamiento secreto fiscal)','Oficio reiteratorio a Club Once Unidos','Oficio reiteratorio a Club Las Lajas']}
+    ]),
+    mk('Juzgado Nº4 de Familia','Secretaría 1','EX-2026-4001','BROGNA SABRINA JACQUELINE C/ NAPOLITANO MATIAS NICOLAS S/ INCIDENTE DE ALIMENTOS','Incidente de alimentos','Brogna Sabrina','Napolitano Matías','Alta','Pendiente de acción',hoy,null,null,'Está a despacho. Hacer escrito para que pase a cámara.',[
+      {fecha:hoy,desc:'13/07: Por contestado el traslado del memorial. Se notifica en forma automatizada.',tareas:['Hacer escrito para que pase a cámara y resuelva','Dejar nota en el expediente']}
+    ]),
+    mk('Juzgado Nº4 de Familia','Secretaría 1','EX-2026-4002','MARTIN PABLO DAVID C/ VASCO ANGELICA ESTEFANIA S/ INCIDENTE DE CUIDADO PERSONAL DE HIJOS','Incidente de cuidado personal','Martín Pablo David','Vasco Angélica Estefanía','Alta','Pendiente de acción',hoy,f89,null,'⚠ RECORDAR: niños regresan el 11/10/2026 — dar aviso.',[
+      {fecha:hoy,desc:'13/07: Regularon honorarios. Comunicar resolución a Dirección de Migraciones. Expedir testimonio. 48hs de arribado del viaje informe el regreso de los niños (llegan el 11 de octubre).',tareas:['Hacer aportes de honorarios regulados','Hacer oficio a Dirección de Migraciones (Relaciones Exteriores)','Expedir testimonio','⚠ RECORDAR DAR AVISO regreso de niños el 11/10/2026']}
+    ]),
+    mk('Juzgado Nº4 de Familia','Secretaría 2','EX-2026-4003','ALCORTA ANGELICA DIANA C/ BRACCHI ADRIANO S/ INCIDENTE DE ALIMENTOS','Incidente de alimentos','Alcorta Angélica','Bracchi Adriano','Media','A despacho',h3,null,null,'',[]),
+    mk('Juzgado Nº4 de Familia','Secretaría 2','EX-2026-4004','BELARDO IGNACIO BAUTISTA Y OTRO S/ EXEQUATUR','Exequátur','Belardo Ignacio','—','Media','A despacho',h3,null,null,'',[]),
+    mk('Juzgado Nº4 de Familia','Secretaría 1','EX-2026-4005','SULE DELFINA S/ GUARDA A PARIENTES','Guarda a parientes','Sulé Delfina','—','Media','A despacho',h3,null,null,'',[]),
+    mk('Juzgado Nº4 de Familia','Secretaría 2','EX-2026-4006','VASCO ANGELICA ESTEFANIA C/ MARTIN PABLO DAVID S/ ALIMENTOS','Alimentos','Vasco Angélica','Martín Pablo','Media','A despacho',h3,null,null,'',[]),
+    mk('Juzgado Nº4 de Familia','Secretaría 2','EX-2026-4007','SANCHEZ LAURA PAOLA C/ GIACOMINI RUBEN ERNESTO S/ INCIDENTE DE ALIMENTOS','Incidente de alimentos','Sánchez Laura','Giacomini Rubén','Media','A despacho',h3,null,null,'',[]),
+    mk('Juzgado Nº5 de Familia','Secretaría 1','EX-2026-5001','CEPEDA ALEJANDRA MERCEDES C/ GURIDI PABLO SEBASTIAN S/ ATRIBUCION VIVIENDA FAMILIAR','Atribución vivienda familiar','Cepeda Alejandra','Guridi Pablo','Media','A despacho',h3,null,null,'',[]),
+    mk('Juzgado Nº5 de Familia','Secretaría 2','EX-2026-5002','BERNARDIS MARCELA NATALIA C/ GANSSLEN FEDERICO S/ MEDIDAS PRECAUTORIAS (ART. 232 CPCC)','Medidas precautorias','Bernardis Marcela','Gansslen Federico','Alta','Pendiente de acción',hoy,null,null,'Cédula bajo responsabilidad del estudio. Verificar que la dejen en puerta.',[
+      {fecha:hoy,desc:'13/07: Se diligencio la cédula bajo responsabilidad nuestra (notifica base arancelaria).',tareas:['Seguirla y ver que efectivamente la dejen en puerta de GANSSLEN, FEDERICO']}
+    ]),
+    mk('Juzgado Nº5 de Familia','Secretaría 2','EX-2026-5003','GANSSLEN FEDERICO C/ BERNARDIS MARCELA NATALIA S/ LIQUIDACION DE REGIMEN PATRIMONIAL','Liquidación de régimen patrimonial','Bernardis Marcela','Gansslen Federico','Media','Esperando contestación',hoy,null,null,'Cédula de la contraparte al domicilio real (honorarios).',[
+      {fecha:hoy,desc:'13/07: Se diligencio cédula de la contraparte al domicilio real notificando los honorarios.',tareas:['Seguirla y ver si la notifican']}
+    ]),
+    mk('Juzgado Nº6 de Familia','Secretaría 1','EX-2026-6001','ZARIELLO MARIANA C/ GAITA SANTIAGO S/ CUIDADO PERSONAL DE HIJOS','Cuidado personal de hijos','Zariello Mariana','Gaita Santiago','Baja','Sin novedades',hoy,null,null,'',[
+      {fecha:hoy,desc:'14/07: Por contestado el traslado y pongo de manifiesto las terapeutas propuestas. Pongo en conocimiento de la Asesoría. Se notifica de manera automatizada.',tareas:[]}
+    ]),
+    mk('Juzgado Nº7 de Familia','Secretaría 1','EX-2026-7001','INIGIZIAN JUAN PABLO C/ AMESTOY LUCIA ANABEL S/ INCIDENTE DE COMUNICACION CON LOS HIJOS','Régimen de comunicación','Inigizian Juan Pablo','Amestoy Lucía','Baja','Sin novedades',hoy,null,f15,'',[
+      {fecha:hoy,desc:'14/07: Se tiene por presentado el correo electrónico a los fines de remitir los enlaces de acceso a la audiencia.',tareas:[]}
+    ]),
+    mk('Juzgado Nº7 de Familia','Secretaría 2','EX-2026-7002','PICCOLO FEDERICO S/ DETERMINACION DE CAPACIDAD JURIDICA','Materia a categorizar','Piccolo Federico','—','Baja','Esperando resolución',h10,null,null,'',[]),
+  ];
+  save();
+}
+
+function mk(juz,sec,num,car,tipo,cli,contra,prio,est,ulMov,venc,aud,notas,movs) {
+  return {
+    id:uid(), juzgado:juz, secretaria:sec, numero:num, caratula:car, tipo:tipo,
+    cliente:cli, contraparte:contra, prioridad:prio, estado:est,
+    ultimoMov:ulMov, vencimiento:venc, audiencia:aud, notas:notas,
+    movimientos:movs.map(m=>({id:uid(),fecha:m.fecha,descripcion:m.desc,tareas:m.tareas,reg:'Sistema'}))
+  };
+}
+
+// ==============================
+// UTILS
+// ==============================
+function uid() { return Math.random().toString(36).slice(2)+Date.now().toString(36); }
+function today() { const d=new Date(); return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`; }
+function addDays(n) { const d=new Date(); d.setDate(d.getDate()+n); return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`; }
+function fmt(d) { if(!d)return'—'; const p=d.split('-'); return`${p[2]}/${p[1]}/${p[0]}`; }
+function daysSince(d) { if(!d)return null; return Math.floor((new Date()-new Date(d+'T00:00:00'))/864e5); }
+function daysUntil(d) { if(!d)return null; return Math.floor((new Date(d+'T00:00:00')-new Date())/864e5); }
+function juzShort(j) { const m=j.match(/(\d+)/); return m?`J${m[1]}`:j.slice(0,4); }
+
+function badgeEstado(e) {
+  const m={'Pendiente de acción':'b-red','A despacho':'b-yellow','Sin novedades':'b-green','Audiencia próxima':'b-purple','Esperando contestación':'b-blue','Esperando resolución':'b-blue','Suspendido':'b-gray','Archivado':'b-gray'};
+  return `<span class="badge ${m[e]||'b-gray'}">${e}</span>`;
+}
+function badgePrio(p) {
+  if(p==='Alta') return '<span class="badge b-red">🔴 Alta</span>';
+  if(p==='Media') return '<span class="badge b-yellow">🟡 Media</span>';
+  return '<span class="badge b-green">🟢 Baja</span>';
+}
+
+// ==============================
+// NAVIGATION
+// ==============================
+function nav(page, filters) {
+  document.querySelectorAll('.page').forEach(p=>p.classList.remove('active'));
+  document.querySelectorAll('.nav-item').forEach(n=>n.classList.remove('active'));
+  const el = document.getElementById('page-'+page);
+  if(el) el.classList.add('active');
+  document.querySelectorAll('.nav-item').forEach(n=>{
+    if(n.getAttribute('onclick')&&n.getAttribute('onclick').includes("'"+page+"'")) n.classList.add('active');
+  });
+  const titles={dashboard:'📊 Dashboard',expedientes:'📁 Expedientes',juzgados:'🏛️ Por Juzgado',registro:'📝 Registro Diario',config:'⚙️ Configuración'};
+  document.getElementById('page-title').textContent=titles[page]||page;
+  curPage=page;
+  if(page==='dashboard') renderDash();
+  if(page==='expedientes'){if(filters)applyFilters(filters);renderTable();}
+  if(page==='juzgados') renderJuzgados();
+  if(page==='registro') renderRegistro();
+  if(page==='config') renderConfig();
+}
+
+function applyFilters(f) {
+  if(f.estado) document.getElementById('f-estado').value=f.estado;
+  if(f.juzgado) document.getElementById('f-juzgado').value=f.juzgado;
+  if(f.prioridad) document.getElementById('f-prioridad').value=f.prioridad;
+}
+function clearFilters() {
+  ['f-search','f-juzgado','f-estado','f-prioridad','f-tipo'].forEach(id=>{
+    const el=document.getElementById(id); if(el)el.value='';
+  });
+  renderTable();
+}
+
+// ==============================
+// DASHBOARD — INFORME DIARIO
+// ==============================
+function renderDash() {
+  // Set date input to today if empty
+  const fechaInput=document.getElementById('dash-fecha');
+  if(!fechaInput.value) fechaInput.value=today();
+  const fecha=fechaInput.value;
+
+  // Collect all movements for this date
+  const items=[];
+  S.expedientes.forEach(e=>{
+    e.movimientos.filter(m=>m.fecha===fecha).forEach(m=>{
+      items.push({exp:e, mov:m});
+    });
+  });
+
+  // Group by juzgado (preserve order)
+  const byJuz={};
+  S.juzgados.forEach(j=>{ byJuz[j]=[]; });
+  items.forEach(it=>{
+    if(!byJuz[it.exp.juzgado]) byJuz[it.exp.juzgado]=[];
+    byJuz[it.exp.juzgado].push(it);
+  });
+
+  const totalMovs=items.length;
+  const totalTareas=items.reduce((acc,it)=>acc+it.mov.tareas.length,0);
+  const juzgadosConMovs=Object.keys(byJuz).filter(j=>byJuz[j].length>0);
+
+  // Resumen
+  const esHoy=fecha===today();
+  document.getElementById('dash-resumen').innerHTML=totalMovs===0?'':
+    `<div style="display:flex;gap:12px;flex-wrap:wrap;margin-bottom:4px;">
+      <span class="badge b-blue">📁 ${totalMovs} expediente${totalMovs!==1?'s':''} con movimientos</span>
+      <span class="badge b-red">⚠ ${totalTareas} tarea${totalTareas!==1?'s':''} pendiente${totalTareas!==1?'s':''}</span>
+      <span class="badge b-gray">🏛️ ${juzgadosConMovs.length} juzgado${juzgadosConMovs.length!==1?'s':''}</span>
+    </div>`;
+
+  // Main content
+  const el=document.getElementById('dash-informe');
+
+  if(totalMovs===0){
+    el.innerHTML=`<div class="empty">
+      <div class="empty-icon">📋</div>
+      <div style="font-size:15px;font-weight:700;margin-bottom:8px;">Sin movimientos registrados</div>
+      <div style="font-size:13px;color:var(--muted);margin-bottom:16px;">${esHoy?'Todavía no cargaste movimientos hoy.':'No hay movimientos para esta fecha.'}</div>
+      ${esHoy?`<button class="btn btn-primary" onclick="nav('registro')">📝 Ir al Registro Diario</button>`:''}
+    </div>`;
+    document.getElementById('sb-total').textContent=`${S.expedientes.length} expedientes cargados`;
+    document.getElementById('sb-fecha').textContent=fmt(today());
+    return;
+  }
+
+  el.innerHTML=juzgadosConMovs.map(juz=>{
+    const movs=byJuz[juz];
+    return`<div style="margin-bottom:24px;">
+      <div style="display:flex;align-items:center;gap:10px;margin-bottom:12px;">
+        <div style="background:var(--primary);color:#fff;padding:5px 14px;border-radius:20px;font-size:12px;font-weight:800;">${juz}</div>
+        <div style="font-size:12px;color:var(--muted);">${movs.length} expediente${movs.length!==1?'s':''}</div>
+        <div style="flex:1;height:1px;background:var(--border);"></div>
+      </div>
+      ${movs.map(({exp:e,mov:m})=>{
+        const hasTareas=m.tareas.length>0;
+        const borderColor=e.prioridad==='Alta'?'var(--danger)':e.prioridad==='Media'?'var(--warning)':'var(--success)';
+        return`<div class="informe-card" style="border-left:4px solid ${borderColor};" onclick="editarMovimiento('${e.id}','${m.id}')">
+          <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:12px;margin-bottom:10px;flex-wrap:wrap;">
+            <div style="flex:1;min-width:0;">
+              <div style="font-size:13px;font-weight:800;line-height:1.3;margin-bottom:4px;">${e.caratula}</div>
+              <div style="display:flex;gap:6px;flex-wrap:wrap;align-items:center;">
+                <span style="font-size:11px;color:var(--muted);">${e.tipo||''}</span>
+                ${e.numero?`<span style="font-size:10px;background:var(--bg);padding:1px 6px;border-radius:4px;color:var(--muted);">${e.numero}</span>`:''}
+              </div>
+            </div>
+            <div style="display:flex;gap:5px;flex-shrink:0;align-items:center;">
+              ${badgePrio(e.prioridad)}
+              ${badgeEstado(e.estado)}
+            </div>
+          </div>
+          ${m.descripcion?`<div style="font-size:13px;color:var(--text);line-height:1.6;padding:10px 12px;background:#f8fafc;border-radius:7px;margin-bottom:${hasTareas?'10px':'0'};">${m.descripcion}</div>`:''}
+          ${hasTareas?`<div>
+            <div style="font-size:11px;font-weight:800;text-transform:uppercase;color:var(--danger);margin-bottom:6px;">⚠ Tareas pendientes</div>
+            ${m.tareas.map(t=>`<div style="display:flex;gap:7px;padding:6px 10px;background:#fff8f0;border:1px solid #fed7aa;border-radius:6px;margin-bottom:4px;font-size:12.5px;"><span style="color:var(--warning);font-weight:700;">→</span>${t}</div>`).join('')}
+          </div>`:''}
+          <div class="informe-card-actions" onclick="event.stopPropagation()">
+            <button class="btn btn-primary btn-sm" onclick="editarMovimiento('${e.id}','${m.id}')">✏️ Editar movimiento</button>
+            <button class="btn btn-outline btn-sm" onclick="openPanel('${e.id}')">📋 Ver expediente completo</button>
+            <button class="btn btn-outline btn-sm" onclick="openModal('editar','${e.id}')">⚙️ Editar datos</button>
+          </div>
+        </div>`;
+      }).join('')}
+    </div>`;
+  }).join('');
+
+  document.getElementById('sb-total').textContent=`${S.expedientes.length} expedientes cargados`;
+  document.getElementById('sb-fecha').textContent=fmt(today());
+
+  // Próximos vencimientos y audiencias
+  const prox=S.expedientes.filter(e=>{
+    const v=e.vencimiento||e.audiencia; if(!v)return false;
+    const d=daysUntil(v); return d!==null&&d>=0&&d<=45;
+  }).sort((a,b)=>(a.vencimiento||a.audiencia).localeCompare(b.vencimiento||b.audiencia));
+  const proxEl=document.getElementById('proximos-list');
+  if(!proxEl)return;
+  if(!prox.length){proxEl.innerHTML='<div style="color:var(--muted);font-size:13px;text-align:center;padding:16px;">Sin vencimientos próximos</div>';return;}
+  proxEl.innerHTML=prox.map(e=>{
+    const fecha=e.vencimiento||e.audiencia;
+    const d=daysUntil(fecha);
+    const esAud=!e.vencimiento&&e.audiencia;
+    const icon=esAud?'📅':'⏰';
+    const cls=d<=2?'b-red':d<=7?'b-yellow':'b-blue';
+    return`<div class="prox-item" onclick="openPanel('${e.id}')" style="cursor:pointer;">
+      <span class="badge ${cls}" style="min-width:52px;justify-content:center;">${icon} ${d===0?'HOY':d+'d'}</span>
+      <div style="flex:1;min-width:0;">
+        <div style="font-size:12px;font-weight:700;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">${e.caratula}</div>
+        <div style="font-size:11px;color:var(--muted);">${juzShort(e.juzgado)} — ${fmt(fecha)}</div>
+      </div>
+    </div>`;
+  }).join('');
+}
+
+function dashNavDate(delta) {
+  const input=document.getElementById('dash-fecha');
+  const d=new Date((input.value||today())+'T12:00:00');
+  d.setDate(d.getDate()+delta);
+  input.value=d.toISOString().slice(0,10);
+  renderDash();
+}
+
+// ==============================
+// EXPORTAR INFORME
+// ==============================
+function getInformeData() {
+  const fechaInput=document.getElementById('dash-fecha');
+  const fecha=fechaInput?fechaInput.value||today():today();
+  const items=[];
+  S.expedientes.forEach(e=>{
+    e.movimientos.filter(m=>m.fecha===fecha).forEach(m=>items.push({exp:e,mov:m}));
+  });
+  const byJuz={};
+  S.juzgados.forEach(j=>{byJuz[j]=[];});
+  items.forEach(it=>{if(!byJuz[it.exp.juzgado])byJuz[it.exp.juzgado]=[];byJuz[it.exp.juzgado].push(it);});
+  return {fecha, items, byJuz};
+}
+
+function exportarInforme() {
+  const {fecha, items, byJuz}=getInformeData();
+  if(!items.length){alert('No hay movimientos registrados para esta fecha.');return;}
+  const juzgadosConMovs=Object.keys(byJuz).filter(j=>byJuz[j].length>0);
+  const totalTareas=items.reduce((acc,it)=>acc+it.mov.tareas.length,0);
+
+  const html=`<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<title>Informe MEV — ${fmt(fecha)}</title>
+<style>
+  * { margin:0; padding:0; box-sizing:border-box; }
+  body { font-family:'Segoe UI',Arial,sans-serif; color:#1a202c; padding:0; background:#fff; }
+  .page { max-width:780px; margin:0 auto; padding:40px 32px; }
+  .header { border-bottom:3px solid #1e3a5f; padding-bottom:18px; margin-bottom:28px; }
+  .header-top { display:flex; justify-content:space-between; align-items:flex-start; }
+  .estudio { font-size:11px; color:#6b7280; text-transform:uppercase; letter-spacing:1px; margin-bottom:4px; }
+  .titulo { font-size:22px; font-weight:900; color:#1e3a5f; }
+  .fecha-inf { font-size:13px; color:#6b7280; margin-top:4px; }
+  .resumen { display:flex; gap:20px; margin-bottom:28px; }
+  .res-item { text-align:center; background:#f8fafc; border-radius:8px; padding:12px 20px; border:1px solid #e5e7eb; }
+  .res-num { font-size:24px; font-weight:900; color:#1e3a5f; }
+  .res-lbl { font-size:11px; color:#6b7280; margin-top:2px; }
+  .juzgado-header { background:#1e3a5f; color:#fff; padding:8px 14px; border-radius:6px; font-size:13px; font-weight:800; margin-bottom:12px; margin-top:24px; }
+  .expediente { border:1px solid #e5e7eb; border-radius:8px; padding:14px; margin-bottom:10px; page-break-inside:avoid; border-left:4px solid; }
+  .exp-alta { border-left-color:#dc2626; }
+  .exp-media { border-left-color:#d97706; }
+  .exp-baja { border-left-color:#16a34a; }
+  .exp-caratula { font-size:13px; font-weight:800; color:#1a202c; margin-bottom:3px; }
+  .exp-meta { font-size:11px; color:#6b7280; margin-bottom:8px; }
+  .exp-mov { font-size:12.5px; color:#374151; line-height:1.6; background:#f8fafc; padding:8px 12px; border-radius:6px; margin-bottom:8px; }
+  .tareas-tit { font-size:11px; font-weight:800; text-transform:uppercase; color:#dc2626; margin-bottom:5px; }
+  .tarea { font-size:12px; padding:5px 10px; background:#fff8f0; border:1px solid #fed7aa; border-radius:5px; margin-bottom:3px; }
+  .tarea::before { content:'→ '; color:#d97706; font-weight:700; }
+  .badge-prio-alta { background:#fee2e2; color:#991b1b; padding:2px 8px; border-radius:10px; font-size:10px; font-weight:700; }
+  .badge-prio-media { background:#fef3c7; color:#92400e; padding:2px 8px; border-radius:10px; font-size:10px; font-weight:700; }
+  .badge-prio-baja { background:#dcfce7; color:#166534; padding:2px 8px; border-radius:10px; font-size:10px; font-weight:700; }
+  .badge-estado { background:#dbeafe; color:#1e40af; padding:2px 8px; border-radius:10px; font-size:10px; font-weight:700; margin-left:4px; }
+  .footer { margin-top:36px; padding-top:14px; border-top:1px solid #e5e7eb; font-size:11px; color:#9ca3af; display:flex; justify-content:space-between; }
+  @media print { body { padding:0; } .page { padding:20px; } }
+</style>
+</head>
+<body>
+<div class="page">
+  <div class="header">
+    <div class="header-top">
+      <div>
+        <div class="estudio">Estudio Jurídico — Informe MEV</div>
+        <div class="titulo">Novedades del día</div>
+        <div class="fecha-inf">${['Domingo','Lunes','Martes','Miércoles','Jueves','Viernes','Sábado'][new Date(fecha+'T12:00:00').getDay()]}, ${fmt(fecha)}</div>
+      </div>
+      <div style="text-align:right;">
+        <div style="font-size:11px;color:#6b7280;">Generado:</div>
+        <div style="font-size:12px;font-weight:700;">${new Date().toLocaleTimeString('es-AR',{hour:'2-digit',minute:'2-digit'})}</div>
+      </div>
+    </div>
+  </div>
+  <div class="resumen">
+    <div class="res-item"><div class="res-num">${items.length}</div><div class="res-lbl">Expedientes con novedades</div></div>
+    <div class="res-item"><div class="res-num">${totalTareas}</div><div class="res-lbl">Tareas pendientes</div></div>
+    <div class="res-item"><div class="res-num">${juzgadosConMovs.length}</div><div class="res-lbl">Juzgados</div></div>
+  </div>
+  ${juzgadosConMovs.map(juz=>`
+  <div class="juzgado-header">${juz}</div>
+  ${byJuz[juz].map(({exp:e,mov:m})=>`
+    <div class="expediente exp-${e.prioridad.toLowerCase()}">
+      <div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:6px;">
+        <div class="exp-caratula">${e.caratula}</div>
+        <div style="white-space:nowrap;margin-left:10px;">
+          <span class="badge-prio-${e.prioridad.toLowerCase()}">${e.prioridad==='Alta'?'🔴':e.prioridad==='Media'?'🟡':'🟢'} ${e.prioridad}</span>
+          <span class="badge-estado">${e.estado}</span>
+        </div>
+      </div>
+      <div class="exp-meta">${e.tipo||''}${e.numero?' — '+e.numero:''}</div>
+      ${m.descripcion?`<div class="exp-mov">${m.descripcion}</div>`:''}
+      ${m.tareas.length?`<div class="tareas-tit">⚠ Tareas pendientes</div>${m.tareas.map(t=>`<div class="tarea">${t}</div>`).join('')}`:''}
+    </div>`).join('')}
+  `).join('')}
+  <div class="footer">
+    <span>Gestor MEV — Expedientes Judiciales</span>
+    <span>Informe correspondiente al ${fmt(fecha)}</span>
+  </div>
+</div>
+<script>window.onload=()=>window.print();<\/script>
+</body>
+</html>`;
+
+  const w=window.open('','_blank');
+  w.document.write(html);
+  w.document.close();
+}
+
+function exportarInformeTexto() {
+  const {fecha, items, byJuz}=getInformeData();
+  if(!items.length){alert('No hay movimientos registrados para esta fecha.');return;}
+  const juzgadosConMovs=Object.keys(byJuz).filter(j=>byJuz[j].length>0);
+  const dias=['Domingo','Lunes','Martes','Miércoles','Jueves','Viernes','Sábado'];
+  const fechaLabel=`${dias[new Date(fecha+'T12:00:00').getDay()]} ${fmt(fecha)}`;
+  let txt=`INFORME MEV — ${fechaLabel.toUpperCase()}\n`;
+  txt+='='.repeat(50)+'\n\n';
+  juzgadosConMovs.forEach(juz=>{
+    txt+=`${juz.toUpperCase()}\n${'-'.repeat(40)}\n`;
+    byJuz[juz].forEach(({exp:e,mov:m})=>{
+      txt+=`\n• ${e.caratula}\n`;
+      if(e.tipo) txt+=`  Tipo: ${e.tipo}\n`;
+      txt+=`  Estado: ${e.estado} | Prioridad: ${e.prioridad}\n`;
+      if(m.descripcion) txt+=`  Movimiento: ${m.descripcion}\n`;
+      if(m.tareas.length){
+        txt+=`  Tareas pendientes:\n`;
+        m.tareas.forEach(t=>{ txt+=`    → ${t}\n`; });
+      }
+    });
+    txt+='\n';
+  });
+  txt+=`\n${'='.repeat(50)}\nTotal: ${items.length} expedientes | Generado: ${new Date().toLocaleTimeString('es-AR',{hour:'2-digit',minute:'2-digit'})}`;
+
+  if(navigator.clipboard){
+    navigator.clipboard.writeText(txt).then(()=>alert('✅ Informe copiado al portapapeles.\nPodés pegarlo directamente en un mail o WhatsApp.'));
+  } else {
+    const ta=document.createElement('textarea');
+    ta.value=txt; document.body.appendChild(ta); ta.select(); document.execCommand('copy');
+    document.body.removeChild(ta);
+    alert('✅ Informe copiado al portapapeles.');
+  }
+}
+
+function renderCharts() {
+  // Bar by juzgado
+  const jc={};
+  S.expedientes.forEach(e=>{ const k=juzShort(e.juzgado); jc[k]=(jc[k]||0)+1; });
+  const jl=Object.keys(jc).sort(), jd=jl.map(k=>jc[k]);
+  const ctxJ=document.getElementById('ch-juzgados');
+  if(ctxJ){ if(chJ)chJ.destroy();
+    chJ=new Chart(ctxJ,{type:'bar',data:{labels:jl,datasets:[{label:'Expedientes',data:jd,backgroundColor:'#2d5a8e',borderRadius:6}]},
+      options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{display:false}},scales:{y:{beginAtZero:true,ticks:{font:{size:10}}},x:{ticks:{font:{size:10}}}}}});
+  }
+  // Donut by estado
+  const ec={};
+  S.expedientes.forEach(e=>{ ec[e.estado]=(ec[e.estado]||0)+1; });
+  const el=Object.keys(ec),ed=el.map(k=>ec[k]);
+  const ecolors=el.map(l=>l==='Pendiente de acción'?'#dc2626':l==='A despacho'?'#d97706':l==='Sin novedades'?'#16a34a':l==='Audiencia próxima'?'#8b5cf6':l.includes('Esperando')?'#3b82f6':'#94a3b8');
+  const ctxE=document.getElementById('ch-estados');
+  if(ctxE){ if(chE)chE.destroy();
+    chE=new Chart(ctxE,{type:'doughnut',data:{labels:el,datasets:[{data:ed,backgroundColor:ecolors,borderWidth:2}]},
+      options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{position:'right',labels:{font:{size:10},padding:7,boxWidth:12}}}}});
+  }
+}
+
+// ==============================
+// TABLE
+// ==============================
+function populateSelects() {
+  const fJ=document.getElementById('f-juzgado');
+  const fE=document.getElementById('f-estado');
+  const fT=document.getElementById('f-tipo');
+  if(fJ&&fJ.options.length<=1) S.juzgados.forEach(j=>{const o=document.createElement('option');o.value=j;o.textContent=j;fJ.appendChild(o);});
+  if(fE&&fE.options.length<=1) ESTADOS.forEach(s=>{const o=document.createElement('option');o.value=s;o.textContent=s;fE.appendChild(o);});
+  if(fT&&fT.options.length<=1) S.tipos.forEach(t=>{const o=document.createElement('option');o.value=t;o.textContent=t;fT.appendChild(o);});
+}
+
+function resetSelects() {
+  ['f-juzgado','f-estado','f-tipo'].forEach(id=>{
+    const el=document.getElementById(id); if(el){while(el.options.length>1)el.remove(1);}
+  });
+}
+
+function renderTable() {
+  populateSelects();
+  const q=(document.getElementById('f-search').value||'').toLowerCase();
+  const fJ=document.getElementById('f-juzgado').value;
+  const fE=document.getElementById('f-estado').value;
+  const fP=document.getElementById('f-prioridad').value;
+  const fT=document.getElementById('f-tipo').value;
+
+  let exps=S.expedientes.filter(e=>{
+    if(q&&!e.caratula.toLowerCase().includes(q)&&!e.numero.toLowerCase().includes(q)&&!e.cliente.toLowerCase().includes(q))return false;
+    if(fJ&&e.juzgado!==fJ)return false;
+    if(fE&&e.estado!==fE)return false;
+    if(fP&&e.prioridad!==fP)return false;
+    if(fT&&e.tipo!==fT)return false;
+    return true;
+  });
+
+  exps.sort((a,b)=>{
+    let va=a[sortState.field]||'', vb=b[sortState.field]||'';
+    if(sortState.field==='prioridad'){const o={Alta:0,Media:1,Baja:2};va=o[a.prioridad]??3;vb=o[b.prioridad]??3;}
+    if(va<vb)return-sortState.dir; if(va>vb)return sortState.dir; return 0;
+  });
+
+  document.getElementById('tbl-summary').textContent=`Mostrando ${exps.length} de ${S.expedientes.length} expedientes`;
+  const cfg=S.config;
+  const tbody=document.getElementById('tbl-body');
+
+  if(!exps.length){tbody.innerHTML=`<tr><td colspan="8" style="text-align:center;padding:40px;color:var(--muted);">Sin resultados</td></tr>`;return;}
+
+  tbody.innerHTML=exps.map(e=>{
+    const ds=daysSince(e.ultimoMov);
+    const dcls=ds>=cfg.diasRev?'d-danger':ds>=3?'d-warn':'d-ok';
+    const dstr=ds===0?'Hoy':`${ds}d`;
+    const pc=e.prioridad==='Alta'?'prio-alta':e.prioridad==='Media'?'prio-media':'';
+    const lastMovTareas=e.movimientos.length?e.movimientos[e.movimientos.length-1].tareas.length:0;
+    return`<tr class="${pc}" onclick="openPanel('${e.id}')">
+      <td><span style="font-size:11px;font-weight:800;color:var(--primary);">${juzShort(e.juzgado)}</span></td>
+      <td>
+        <div style="font-size:12px;font-weight:700;max-width:290px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">${e.caratula}</div>
+        ${lastMovTareas?`<div style="font-size:10.5px;color:var(--warning);">⚠ ${lastMovTareas} tarea(s) pendiente(s)</div>`:''}
+      </td>
+      <td style="font-size:11.5px;color:var(--muted);white-space:nowrap;">${e.tipo||'—'}</td>
+      <td>${badgeEstado(e.estado)}</td>
+      <td>${badgePrio(e.prioridad)}</td>
+      <td style="font-size:12px;white-space:nowrap;">${fmt(e.ultimoMov)}</td>
+      <td><span class="${dcls}">${dstr}</span></td>
+      <td onclick="event.stopPropagation()">
+        <button class="btn btn-sm btn-accent" onclick="openRegForExp('${e.id}')">📝</button>
+      </td>
+    </tr>`;
+  }).join('');
+}
+
+function sort(f) {
+  if(sortState.field===f)sortState.dir*=-1; else{sortState.field=f;sortState.dir=1;}
+  renderTable();
+}
+
+// ==============================
+// DETAIL PANEL
+// ==============================
+function openPanel(id) {
+  const e=S.expedientes.find(x=>x.id===id); if(!e)return;
+  selectedId=id;
+  document.getElementById('p-juz').textContent=e.juzgado+(e.secretaria?' — '+e.secretaria:'')+(e.numero?' — '+e.numero:'');
+  document.getElementById('p-car').textContent=e.caratula;
+  document.getElementById('p-badges').innerHTML=badgePrio(e.prioridad)+' '+badgeEstado(e.estado);
+
+  const tareas=e.movimientos.length?e.movimientos[e.movimientos.length-1].tareas:[];
+  let html='';
+
+  if(tareas.length){
+    html+=`<div style="margin-bottom:16px;">
+      <div style="font-size:11px;font-weight:800;text-transform:uppercase;color:var(--danger);margin-bottom:8px;">⚠ Tareas Pendientes</div>
+      ${tareas.map(t=>`<div class="tarea-item"><span style="color:var(--warning);">→</span>${t}</div>`).join('')}
+    </div>`;
+  }
+
+  html+=`<div style="margin-bottom:16px;">
+    <div style="font-size:11px;font-weight:800;text-transform:uppercase;color:var(--muted);margin-bottom:8px;">Información</div>
+    <div class="info-row"><div class="info-lbl">Tipo</div><div class="info-val">${e.tipo||'—'}</div></div>
+    <div class="info-row"><div class="info-lbl">Cliente</div><div class="info-val">${e.cliente||'—'}</div></div>
+    <div class="info-row"><div class="info-lbl">Contraparte</div><div class="info-val">${e.contraparte||'—'}</div></div>
+    <div class="info-row"><div class="info-lbl">Últ. movimiento</div><div class="info-val">${fmt(e.ultimoMov)} (${daysSince(e.ultimoMov)}d atrás)</div></div>
+    ${e.vencimiento?`<div class="info-row"><div class="info-lbl">Vencimiento</div><div class="info-val" style="font-weight:700;color:var(--danger);">${fmt(e.vencimiento)} (en ${daysUntil(e.vencimiento)}d)</div></div>`:''}
+    ${e.audiencia?`<div class="info-row"><div class="info-lbl">Audiencia</div><div class="info-val" style="font-weight:700;color:#8b5cf6;">${fmt(e.audiencia)} (en ${daysUntil(e.audiencia)}d)</div></div>`:''}
+    ${e.notas?`<div class="info-row"><div class="info-lbl">Notas</div><div class="info-val" style="line-height:1.5;">${e.notas}</div></div>`:''}
+  </div>`;
+
+  if(e.movimientos.length){
+    html+=`<div>
+      <div style="font-size:11px;font-weight:800;text-transform:uppercase;color:var(--muted);margin-bottom:8px;">📋 Movimientos</div>
+      ${[...e.movimientos].reverse().map(m=>`
+        <div class="mov-item">
+          <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:3px;">
+            <div class="mov-fecha">${fmt(m.fecha)}</div>
+            <button class="btn btn-sm btn-outline" style="padding:2px 7px;font-size:11px;" onclick="editarMovimiento('${e.id}','${m.id}')">✏️ Editar</button>
+          </div>
+          <div class="mov-desc">${m.descripcion}</div>
+          ${m.tareas.length?`<div style="margin-top:5px;">${m.tareas.map(t=>`<div style="font-size:11px;color:var(--warning);margin-top:2px;">→ ${t}</div>`).join('')}</div>`:''}
+        </div>`).join('')}
+    </div>`;
+  }
+
+  document.getElementById('p-body').innerHTML=html;
+  document.getElementById('detail-panel').classList.add('open');
+}
+
+function closePanel() { document.getElementById('detail-panel').classList.remove('open'); selectedId=null; }
+function editarActual() { if(selectedId)openModal('editar',selectedId); }
+function irARegistro() { const id=selectedId; closePanel(); nav('registro'); setTimeout(()=>{document.getElementById('r-exp').value=id;},80); }
+function eliminarActual() {
+  if(!selectedId)return;
+  const e=S.expedientes.find(x=>x.id===selectedId);
+  if(!e||!confirm(`¿Eliminar "${e.caratula.slice(0,50)}..."?\nEsta acción no se puede deshacer.`))return;
+  S.expedientes=S.expedientes.filter(x=>x.id!==selectedId);
+  save(); closePanel(); resetSelects();
+  if(curPage==='expedientes')renderTable();
+  if(curPage==='dashboard')renderDash();
+  if(curPage==='juzgados')renderJuzgados();
+}
+
+// ==============================
+// MODAL
+// ==============================
+function openModal(type, id) {
+  const e=id?S.expedientes.find(x=>x.id===id):null;
+  const jOpts=S.juzgados.map(j=>`<option value="${j}" ${e&&e.juzgado===j?'selected':''}>${j}</option>`).join('');
+  const tOpts=S.tipos.map(t=>`<option value="${t}" ${e&&e.tipo===t?'selected':''}>${t}</option>`).join('');
+  const eOpts=ESTADOS.map(s=>`<option value="${s}" ${e&&e.estado===s?'selected':''}>${s}</option>`).join('');
+
+  document.getElementById('modal-wrap').innerHTML=`
+  <div class="overlay" onclick="if(event.target===this)closeModal()">
+    <div class="modal">
+      <div class="modal-head">
+        <div class="modal-title">${e?'✏️ Editar Expediente':'➕ Nuevo Expediente'}</div>
+        <button class="modal-x" onclick="closeModal()">✕</button>
+      </div>
+      <div class="fgrid">
+        <div class="fg"><label class="fg-label">Juzgado *</label><select class="fi2" id="m-juz">${jOpts}</select></div>
+        <div class="fg"><label class="fg-label">Secretaría</label><input type="text" class="fi2" id="m-sec" value="${e?e.secretaria:''}"></div>
+        <div class="fg"><label class="fg-label">Número de expediente</label><input type="text" class="fi2" id="m-num" placeholder="EX-2026-XXXX" value="${e?e.numero:''}"></div>
+        <div class="fg"><label class="fg-label">Tipo de proceso</label><select class="fi2" id="m-tipo">${tOpts}</select></div>
+        <div class="fg full"><label class="fg-label">Carátula *</label><input type="text" class="fi2" id="m-car" placeholder="APELLIDO C/ APELLIDO S/ TIPO" value="${e?e.caratula:''}"></div>
+        <div class="fg"><label class="fg-label">Cliente / Parte</label><input type="text" class="fi2" id="m-cli" value="${e?e.cliente:''}"></div>
+        <div class="fg"><label class="fg-label">Contraparte</label><input type="text" class="fi2" id="m-contra" value="${e?e.contraparte:''}"></div>
+        <div class="fg"><label class="fg-label">Estado</label><select class="fi2" id="m-est">${eOpts}</select></div>
+        <div class="fg"><label class="fg-label">Prioridad</label>
+          <select class="fi2" id="m-prio">
+            <option value="Baja" ${e&&e.prioridad==='Baja'?'selected':''}>🟢 Baja</option>
+            <option value="Media" ${e&&e.prioridad==='Media'?'selected':''}>🟡 Media</option>
+            <option value="Alta" ${(!e||e.prioridad==='Alta')?'selected':''}>🔴 Alta</option>
+          </select>
+        </div>
+        <div class="fg"><label class="fg-label">Vencimiento</label><input type="date" class="fi2" id="m-venc" value="${e&&e.vencimiento?e.vencimiento:''}"></div>
+        <div class="fg"><label class="fg-label">Fecha audiencia</label><input type="date" class="fi2" id="m-aud" value="${e&&e.audiencia?e.audiencia:''}"></div>
+        <div class="fg full"><label class="fg-label">Notas internas</label><textarea class="fi2" id="m-notas">${e?e.notas:''}</textarea></div>
+      </div>
+      <div style="margin-top:18px;display:flex;gap:8px;justify-content:flex-end;">
+        <button class="btn btn-outline" onclick="closeModal()">Cancelar</button>
+        <button class="btn btn-primary" onclick="saveExp('${e?e.id:''}')">${e?'💾 Guardar cambios':'➕ Crear expediente'}</button>
+      </div>
+    </div>
+  </div>`;
+}
+
+function closeModal() { document.getElementById('modal-wrap').innerHTML=''; }
+
+function saveExp(id) {
+  const juz=document.getElementById('m-juz').value;
+  const car=document.getElementById('m-car').value.trim();
+  if(!juz||!car){alert('Completá juzgado y carátula.');return;}
+  if(id){
+    const e=S.expedientes.find(x=>x.id===id);
+    if(e){
+      e.juzgado=juz; e.secretaria=document.getElementById('m-sec').value.trim();
+      e.numero=document.getElementById('m-num').value.trim(); e.caratula=car;
+      e.tipo=document.getElementById('m-tipo').value; e.cliente=document.getElementById('m-cli').value.trim();
+      e.contraparte=document.getElementById('m-contra').value.trim(); e.estado=document.getElementById('m-est').value;
+      e.prioridad=document.getElementById('m-prio').value;
+      e.vencimiento=document.getElementById('m-venc').value||null;
+      e.audiencia=document.getElementById('m-aud').value||null;
+      e.notas=document.getElementById('m-notas').value.trim();
+    }
+  } else {
+    S.expedientes.push({
+      id:uid(), juzgado:juz, secretaria:document.getElementById('m-sec').value.trim(),
+      numero:document.getElementById('m-num').value.trim(), caratula:car,
+      tipo:document.getElementById('m-tipo').value, cliente:document.getElementById('m-cli').value.trim(),
+      contraparte:document.getElementById('m-contra').value.trim(), estado:document.getElementById('m-est').value,
+      prioridad:document.getElementById('m-prio').value, ultimoMov:today(),
+      vencimiento:document.getElementById('m-venc').value||null,
+      audiencia:document.getElementById('m-aud').value||null,
+      notas:document.getElementById('m-notas').value.trim(), movimientos:[]
+    });
+  }
+  save(); closeModal(); resetSelects(); populateRegDropdown();
+  if(curPage==='expedientes')renderTable();
+  if(curPage==='dashboard')renderDash();
+  if(curPage==='juzgados')renderJuzgados();
+  if(id&&selectedId===id)openPanel(id);
+}
+
+// ==============================
+// REGISTRO DIARIO
+// ==============================
+function renderRegistro() {
+  document.getElementById('r-fecha').value=today();
+  const rE=document.getElementById('r-estado');
+  if(rE.options.length<=1) ESTADOS.forEach(s=>{const o=document.createElement('option');o.value=s;o.textContent=s;rE.appendChild(o);});
+  populateRegDropdown();
+  renderMovsHoy();
+}
+
+function populateRegDropdown() {
+  const sel=document.getElementById('r-exp'); if(!sel)return;
+  const cur=sel.value; while(sel.options.length>1)sel.remove(1);
+  [...S.expedientes].sort((a,b)=>a.juzgado.localeCompare(b.juzgado)||a.caratula.localeCompare(b.caratula))
+    .forEach(e=>{const o=document.createElement('option');o.value=e.id;o.textContent=`[${juzShort(e.juzgado)}] ${e.caratula.slice(0,65)}`;sel.appendChild(o);});
+  if(cur)sel.value=cur;
+}
+
+function openRegForExp(id) { nav('registro'); setTimeout(()=>{document.getElementById('r-exp').value=id;},80); }
+
+function guardarMov() {
+  const eid=document.getElementById('r-exp').value;
+  const fecha=document.getElementById('r-fecha').value;
+  const desc=document.getElementById('r-desc').value.trim();
+  const tRaw=document.getElementById('r-tareas').value.trim();
+  const est=document.getElementById('r-estado').value;
+  const prio=document.getElementById('r-prio').value;
+  const venc=document.getElementById('r-venc').value;
+  if(!eid){alert('Seleccioná un expediente.');return;}
+  if(!desc){alert('Ingresá la descripción del movimiento.');return;}
+  const e=S.expedientes.find(x=>x.id===eid); if(!e)return;
+  const tareas=tRaw?tRaw.split('\n').map(t=>t.trim()).filter(Boolean):[];
+  e.movimientos.push({id:uid(),fecha:fecha||today(),descripcion:desc,tareas,reg:''});
+  e.ultimoMov=fecha||today();
+  if(est)e.estado=est; if(prio)e.prioridad=prio; if(venc)e.vencimiento=venc;
+  save();
+  ['r-exp','r-desc','r-tareas','r-venc'].forEach(id=>{document.getElementById(id).value='';});
+  ['r-estado','r-prio'].forEach(id=>{document.getElementById(id).value='';});
+  renderMovsHoy();
+  // Refresh dashboard if it's the active page or set date to sync
+  const dashFecha=document.getElementById('dash-fecha');
+  if(dashFecha&&!dashFecha.value) dashFecha.value=today();
+  alert(`✅ Movimiento guardado en:\n"${e.caratula.slice(0,55)}..."`);
+}
+
+function renderMovsHoy() {
+  const t=today();
+  const hoy=[];
+  S.expedientes.forEach(e=>e.movimientos.filter(m=>m.fecha===t).forEach(m=>hoy.push({e,m})));
+  const el=document.getElementById('movs-hoy');
+  if(!hoy.length){el.innerHTML='<div style="color:var(--muted);font-size:13px;text-align:center;padding:24px;">Sin movimientos registrados hoy</div>';return;}
+  el.innerHTML=hoy.map(({e,m})=>`
+    <div class="mov-hoy">
+      <div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:6px;gap:8px;">
+        <div style="flex:1;min-width:0;">
+          <span style="background:var(--primary);color:#fff;padding:2px 8px;border-radius:4px;font-size:10.5px;font-weight:800;">${juzShort(e.juzgado)}</span>
+          <span style="font-size:12px;font-weight:700;margin-left:8px;">${e.caratula.slice(0,60)}</span>
+        </div>
+        <div style="display:flex;gap:5px;align-items:center;flex-shrink:0;">
+          ${badgeEstado(e.estado)}
+          <button class="btn btn-sm btn-outline" onclick="editarMovimiento('${e.id}','${m.id}')" title="Editar movimiento">✏️</button>
+        </div>
+      </div>
+      <div style="font-size:12.5px;color:var(--text);margin-bottom:5px;">${m.descripcion}</div>
+      ${m.tareas.length?m.tareas.map(t=>`<div style="font-size:11.5px;color:var(--warning);">→ ${t}</div>`).join(''):''}
+    </div>`).join('');
+}
+
+// ==============================
+// JUZGADOS
+// ==============================
+function renderJuzgados() {
+  document.getElementById('juz-grid').innerHTML=S.juzgados.map(j=>{
+    const exps=S.expedientes.filter(e=>e.juzgado===j);
+    const pend=exps.filter(e=>e.estado==='Pendiente de acción').length;
+    const alta=exps.filter(e=>e.prioridad==='Alta').length;
+    return`<div class="juz-card" onclick="nav('expedientes',{juzgado:'${j}'})">
+      <div class="juz-name">${j.replace(' de Familia','')}</div>
+      <div class="juz-count">${exps.length}</div>
+      <div class="juz-stats">
+        <span style="color:var(--danger);">🔴 ${pend} pendientes</span><br>
+        <span style="color:var(--warning);">⚠ ${alta} prioridad alta</span>
+      </div>
+    </div>`;
+  }).join('');
+}
+
+// ==============================
+// EDITAR MOVIMIENTO
+// ==============================
+function editarMovimiento(expId, movId) {
+  const e=S.expedientes.find(x=>x.id===expId); if(!e)return;
+  const m=e.movimientos.find(x=>x.id===movId); if(!m)return;
+  document.getElementById('modal-wrap').innerHTML=`
+  <div class="overlay" onclick="if(event.target===this)closeModal()">
+    <div class="modal">
+      <div class="modal-head">
+        <div class="modal-title">✏️ Editar movimiento</div>
+        <button class="modal-x" onclick="closeModal()">✕</button>
+      </div>
+      <div style="font-size:12px;color:var(--muted);margin-bottom:16px;padding:8px 12px;background:var(--bg);border-radius:7px;">${e.caratula}</div>
+      <div class="fgrid">
+        <div class="fg">
+          <label class="fg-label">Fecha</label>
+          <input type="date" class="fi2" id="em-fecha" value="${m.fecha}">
+        </div>
+        <div class="fg">
+          <label class="fg-label">Estado del expediente</label>
+          <select class="fi2" id="em-estado">
+            ${ESTADOS.map(s=>`<option value="${s}" ${e.estado===s?'selected':''}>${s}</option>`).join('')}
+          </select>
+        </div>
+        <div class="fg">
+          <label class="fg-label">Prioridad</label>
+          <select class="fi2" id="em-prio">
+            <option value="Alta" ${e.prioridad==='Alta'?'selected':''}>🔴 Alta</option>
+            <option value="Media" ${e.prioridad==='Media'?'selected':''}>🟡 Media</option>
+            <option value="Baja" ${e.prioridad==='Baja'?'selected':''}>🟢 Baja</option>
+          </select>
+        </div>
+        <div class="fg">
+          <label class="fg-label">Vencimiento</label>
+          <input type="date" class="fi2" id="em-venc" value="${e.vencimiento||''}">
+        </div>
+        <div class="fg full">
+          <label class="fg-label">Descripción del movimiento</label>
+          <textarea class="fi2" id="em-desc" style="min-height:90px;">${m.descripcion}</textarea>
+        </div>
+        <div class="fg full">
+          <label class="fg-label">Tareas pendientes (una por línea)</label>
+          <textarea class="fi2" id="em-tareas" style="min-height:80px;">${m.tareas.join('\n')}</textarea>
+        </div>
+      </div>
+      <div style="margin-top:18px;display:flex;gap:8px;justify-content:space-between;">
+        <button class="btn btn-sm btn-danger" onclick="eliminarMovimiento('${expId}','${movId}')">🗑️ Eliminar movimiento</button>
+        <div style="display:flex;gap:8px;">
+          <button class="btn btn-outline" onclick="closeModal()">Cancelar</button>
+          <button class="btn btn-primary" onclick="guardarEdicionMov('${expId}','${movId}')">💾 Guardar cambios</button>
+        </div>
+      </div>
+    </div>
+  </div>`;
+}
+
+function guardarEdicionMov(expId, movId) {
+  const e=S.expedientes.find(x=>x.id===expId); if(!e)return;
+  const m=e.movimientos.find(x=>x.id===movId); if(!m)return;
+  m.fecha=document.getElementById('em-fecha').value||today();
+  m.descripcion=document.getElementById('em-desc').value.trim();
+  m.tareas=document.getElementById('em-tareas').value.trim().split('\n').map(t=>t.trim()).filter(Boolean);
+  e.estado=document.getElementById('em-estado').value;
+  e.prioridad=document.getElementById('em-prio').value;
+  const venc=document.getElementById('em-venc').value;
+  if(venc)e.vencimiento=venc;
+  // Update ultimoMov to latest movement date
+  if(e.movimientos.length) e.ultimoMov=[...e.movimientos].sort((a,b)=>b.fecha.localeCompare(a.fecha))[0].fecha;
+  save(); closeModal();
+  renderMovsHoy();
+  renderDash();
+  if(selectedId===expId)openPanel(expId);
+}
+
+function eliminarMovimiento(expId, movId) {
+  if(!confirm('¿Eliminar este movimiento?'))return;
+  const e=S.expedientes.find(x=>x.id===expId); if(!e)return;
+  e.movimientos=e.movimientos.filter(m=>m.id!==movId);
+  if(e.movimientos.length) e.ultimoMov=[...e.movimientos].sort((a,b)=>b.fecha.localeCompare(a.fecha))[0].fecha;
+  save(); closeModal();
+  renderMovsHoy();
+  renderDash();
+  if(selectedId===expId)openPanel(expId);
+}
+
+// ==============================
+// CONFIG
+// ==============================
+function renderConfig() {
+  document.getElementById('cfg-dias-rev').value=S.config.diasRev;
+  document.getElementById('cfg-dias-venc').value=S.config.diasVenc;
+  document.getElementById('cfg-juzgados').innerHTML=S.juzgados.map((j,i)=>`
+    <div style="display:flex;justify-content:space-between;align-items:center;padding:6px 0;border-bottom:1px solid var(--border);">
+      <span style="font-size:13px;">${j}</span>
+      <button class="btn btn-sm" style="background:#fee2e2;color:#991b1b;" onclick="delJuzgado(${i})">✕</button>
+    </div>`).join('');
+  document.getElementById('cfg-tipos').innerHTML=S.tipos.map((t,i)=>`
+    <div style="display:flex;justify-content:space-between;align-items:center;padding:6px 0;border-bottom:1px solid var(--border);">
+      <span style="font-size:13px;">${t}</span>
+      <button class="btn btn-sm" style="background:#fee2e2;color:#991b1b;" onclick="delTipo(${i})">✕</button>
+    </div>`).join('');
+}
+function saveConfig(){S.config.diasRev=parseInt(document.getElementById('cfg-dias-rev').value)||7;S.config.diasVenc=parseInt(document.getElementById('cfg-dias-venc').value)||14;save();}
+function addJuzgado(){const v=document.getElementById('nuevo-juz').value.trim();if(!v)return;S.juzgados.push(v);document.getElementById('nuevo-juz').value='';save();renderConfig();}
+function addTipo(){const v=document.getElementById('nuevo-tipo').value.trim();if(!v)return;S.tipos.push(v);document.getElementById('nuevo-tipo').value='';save();renderConfig();}
+function delJuzgado(i){if(!confirm('¿Eliminar este juzgado?'))return;S.juzgados.splice(i,1);save();renderConfig();}
+function delTipo(i){if(!confirm('¿Eliminar este tipo?'))return;S.tipos.splice(i,1);save();renderConfig();}
+function exportJSON(){const b=new Blob([JSON.stringify(S,null,2)],{type:'application/json'});const u=URL.createObjectURL(b);const a=document.createElement('a');a.href=u;a.download=`mev-backup-${today()}.json`;a.click();URL.revokeObjectURL(u);}
+function importJSON(ev){const f=ev.target.files[0];if(!f)return;const r=new FileReader();r.onload=e=>{try{const d=JSON.parse(e.target.result);if(d.expedientes&&confirm(`¿Reemplazar los datos actuales (${S.expedientes.length} expedientes) con el backup?`)){S=d;save();location.reload();}}catch{alert('Error al leer el archivo JSON.');}};r.readAsText(f);}
+function borrarTodo(){if(!confirm('⚠️ Esto eliminará TODOS los datos. ¿Confirmar?'))return;if(!confirm('Confirmar borrado definitivo.'))return;S.expedientes=[];save();location.reload();}
+
+// ==============================
+// INIT
+// ==============================
+function init() {
+  const now=new Date();
+  const dias=['Domingo','Lunes','Martes','Miércoles','Jueves','Viernes','Sábado'];
+  const meses=['enero','febrero','marzo','abril','mayo','junio','julio','agosto','septiembre','octubre','noviembre','diciembre'];
+  document.getElementById('topbar-date').textContent=`${dias[now.getDay()]} ${now.getDate()} de ${meses[now.getMonth()]} de ${now.getFullYear()}`;
+  document.getElementById('sb-fecha').textContent=fmt(today());
+  load();
+  renderDash();
+}
+
+init();
+</script>
+</body>
+</html>
