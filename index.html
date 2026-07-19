@@ -336,19 +336,6 @@ textarea.fi2 { resize:vertical; min-height:75px; }
             <label class="fg-label">Tareas pendientes (una por línea)</label>
             <textarea class="fi2" id="r-tareas" placeholder="Hacer escrito de contestación&#10;Oficiar al Registro de la Propiedad&#10;Llamar al cliente"></textarea>
           </div>
-          <div class="fg">
-            <label class="fg-label">Cambiar estado</label>
-            <select class="fi2" id="r-estado"><option value="">Sin cambio</option></select>
-          </div>
-          <div class="fg">
-            <label class="fg-label">Cambiar prioridad</label>
-            <select class="fi2" id="r-prio">
-              <option value="">Sin cambio</option>
-              <option value="Alta">🔴 Alta</option>
-              <option value="Media">🟡 Media</option>
-              <option value="Baja">🟢 Baja</option>
-            </select>
-          </div>
         </div>
         <button class="btn btn-primary" onclick="guardarMov()">💾 Guardar movimiento</button>
       </div>
@@ -643,10 +630,7 @@ function renderDash() {
                 ${e.numero?`<span style="font-size:10px;background:var(--bg);padding:1px 6px;border-radius:4px;color:var(--muted);">${e.numero}</span>`:''}
               </div>
             </div>
-            <div style="display:flex;gap:5px;flex-shrink:0;align-items:center;">
-              ${badgePrio(e.prioridad)}
-              ${badgeEstado(e.estado)}
-            </div>
+            <div style="display:flex;gap:5px;flex-shrink:0;align-items:center;"></div>
           </div>
           ${m.descripcion?`<div style="font-size:13px;color:var(--text);line-height:1.6;padding:10px 12px;background:#f8fafc;border-radius:7px;margin-bottom:${hasTareas?'10px':'0'};">${m.descripcion}</div>`:''}
           ${hasTareas?`<div>
@@ -781,12 +765,8 @@ function exportarInforme() {
   <div class="juzgado-header">${juz}</div>
   ${byJuz[juz].map(({exp:e,mov:m})=>`
     <div class="expediente exp-${e.prioridad.toLowerCase()}">
-      <div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:6px;">
+      <div style="margin-bottom:6px;">
         <div class="exp-caratula">${e.caratula}</div>
-        <div style="white-space:nowrap;margin-left:10px;">
-          <span class="badge-prio-${e.prioridad.toLowerCase()}">${e.prioridad==='Alta'?'🔴':e.prioridad==='Media'?'🟡':'🟢'} ${e.prioridad}</span>
-          <span class="badge-estado">${e.estado}</span>
-        </div>
       </div>
       <div class="exp-meta">${e.tipo||''}${e.numero?' — '+e.numero:''}</div>
       ${m.descripcion?`<div class="exp-mov">${m.descripcion}</div>`:''}
@@ -820,7 +800,6 @@ function exportarInformeTexto() {
     byJuz[juz].forEach(({exp:e,mov:m})=>{
       txt+=`\n• ${e.caratula}\n`;
       if(e.tipo) txt+=`  Tipo: ${e.tipo}\n`;
-      txt+=`  Estado: ${e.estado} | Prioridad: ${e.prioridad}\n`;
       if(m.descripcion) txt+=`  Movimiento: ${m.descripcion}\n`;
       if(m.tareas.length){
         txt+=`  Tareas pendientes:\n`;
@@ -1089,8 +1068,6 @@ function saveExp(id) {
 // ==============================
 function renderRegistro() {
   document.getElementById('r-fecha').value=today();
-  const rE=document.getElementById('r-estado');
-  if(rE.options.length<=1) ESTADOS.forEach(s=>{const o=document.createElement('option');o.value=s;o.textContent=s;rE.appendChild(o);});
   populateRegDropdown();
   renderMovsHoy();
 }
@@ -1110,8 +1087,6 @@ function guardarMov() {
   const fecha=document.getElementById('r-fecha').value;
   const desc=document.getElementById('r-desc').value.trim();
   const tRaw=document.getElementById('r-tareas').value.trim();
-  const est=document.getElementById('r-estado').value;
-  const prio=document.getElementById('r-prio').value;
   const venc=document.getElementById('r-venc').value;
   if(!eid){alert('Seleccioná un expediente.');return;}
   if(!desc){alert('Ingresá la descripción del movimiento.');return;}
@@ -1119,10 +1094,9 @@ function guardarMov() {
   const tareas=tRaw?tRaw.split('\n').map(t=>t.trim()).filter(Boolean):[];
   e.movimientos.push({id:uid(),fecha:fecha||today(),descripcion:desc,tareas,reg:''});
   e.ultimoMov=fecha||today();
-  if(est)e.estado=est; if(prio)e.prioridad=prio; if(venc)e.vencimiento=venc;
+  if(venc)e.vencimiento=venc;
   save();
   ['r-exp','r-desc','r-tareas','r-venc'].forEach(id=>{document.getElementById(id).value='';});
-  ['r-estado','r-prio'].forEach(id=>{document.getElementById(id).value='';});
   renderMovsHoy();
   // Refresh dashboard if it's the active page or set date to sync
   const dashFecha=document.getElementById('dash-fecha');
@@ -1192,20 +1166,6 @@ function editarMovimiento(expId, movId) {
           <input type="date" class="fi2" id="em-fecha" value="${m.fecha}">
         </div>
         <div class="fg">
-          <label class="fg-label">Estado del expediente</label>
-          <select class="fi2" id="em-estado">
-            ${ESTADOS.map(s=>`<option value="${s}" ${e.estado===s?'selected':''}>${s}</option>`).join('')}
-          </select>
-        </div>
-        <div class="fg">
-          <label class="fg-label">Prioridad</label>
-          <select class="fi2" id="em-prio">
-            <option value="Alta" ${e.prioridad==='Alta'?'selected':''}>🔴 Alta</option>
-            <option value="Media" ${e.prioridad==='Media'?'selected':''}>🟡 Media</option>
-            <option value="Baja" ${e.prioridad==='Baja'?'selected':''}>🟢 Baja</option>
-          </select>
-        </div>
-        <div class="fg">
           <label class="fg-label">Vencimiento</label>
           <input type="date" class="fi2" id="em-venc" value="${e.vencimiento||''}">
         </div>
@@ -1235,8 +1195,6 @@ function guardarEdicionMov(expId, movId) {
   m.fecha=document.getElementById('em-fecha').value||today();
   m.descripcion=document.getElementById('em-desc').value.trim();
   m.tareas=document.getElementById('em-tareas').value.trim().split('\n').map(t=>t.trim()).filter(Boolean);
-  e.estado=document.getElementById('em-estado').value;
-  e.prioridad=document.getElementById('em-prio').value;
   const venc=document.getElementById('em-venc').value;
   if(venc)e.vencimiento=venc;
   // Update ultimoMov to latest movement date
