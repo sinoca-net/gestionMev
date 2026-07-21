@@ -197,6 +197,19 @@ textarea.fi2 { resize:vertical; min-height:75px; }
 
 .summary-txt { font-size:12px; color:var(--muted); margin-bottom:10px; }
 
+/* RICH TEXT EDITOR */
+.rich-editor { border:1px solid var(--border); border-radius:8px; background:#fff; min-height:90px; padding:9px 11px; font-size:13px; color:var(--text); line-height:1.6; outline:none; width:100%; box-sizing:border-box; cursor:text; }
+.rich-editor:focus { border-color:var(--primary-light); box-shadow:0 0 0 3px rgba(99,102,241,.1); }
+.rich-editor:empty:before { content:attr(placeholder); color:#94a3b8; pointer-events:none; display:block; }
+.fmt-toolbar { display:flex; gap:5px; margin-bottom:5px; }
+.fmt-btn { padding:3px 11px; border:1px solid var(--border); border-radius:6px; background:#fff; font-size:13px; cursor:pointer; transition:background .1s; line-height:1.5; color:var(--text); }
+.fmt-btn:hover { background:var(--bg); border-color:var(--primary-light); }
+
+/* MOVIMIENTOS ANTERIORES */
+.mov-ant-item { padding:10px 13px; border-left:3px solid var(--primary-light); background:#f8fafc; border-radius:0 8px 8px 0; margin-bottom:8px; }
+.mov-ant-fecha { font-size:10.5px; font-weight:700; color:var(--muted); margin-bottom:3px; }
+.mov-ant-desc { font-size:12px; color:var(--text); line-height:1.5; }
+
 /* REGISTRO */
 .reg-card { background:#fff; border-radius:12px; border:1px solid var(--border); padding:20px; margin-bottom:20px; }
 .mov-hoy { background:#fff; border:1px solid var(--border); border-radius:8px; padding:13px; margin-bottom:8px; }
@@ -328,13 +341,22 @@ textarea.fi2 { resize:vertical; min-height:75px; }
             <label class="fg-label">Vencimiento / Audiencia</label>
             <input type="date" class="fi2" id="r-venc">
           </div>
-          <div class="fg full">
-            <label class="fg-label">Descripción del movimiento *</label>
-            <textarea class="fi2" id="r-desc" placeholder="Ej: Juzgado corre traslado a la demandada por 5 días..."></textarea>
+          <div class="fg">
+            <label class="fg-label">Estado del expediente</label>
+            <select class="fi2" id="r-estado"><option value="">Sin cambio</option></select>
           </div>
           <div class="fg full">
-            <label class="fg-label">Tareas pendientes (una por línea)</label>
-            <textarea class="fi2" id="r-tareas" placeholder="Hacer escrito de contestación&#10;Oficiar al Registro de la Propiedad&#10;Llamar al cliente"></textarea>
+            <label class="fg-label">Descripción del movimiento *</label>
+            <div class="fmt-toolbar">
+              <button type="button" class="fmt-btn" onclick="applyFmt('bold','r-desc')" title="Negrita"><b>N</b></button>
+              <button type="button" class="fmt-btn" onclick="applyFmt('underline','r-desc')" title="Subrayado"><u>S</u></button>
+              <button type="button" class="fmt-btn" onclick="applyFmt('italic','r-desc')" title="Cursiva"><i>I</i></button>
+            </div>
+            <div class="rich-editor" id="r-desc" contenteditable="true" placeholder="Ej: Juzgado corre traslado a la demandada por 5 días..."></div>
+          </div>
+          <div class="fg full">
+            <label class="fg-label">📋 Movimientos anteriores</label>
+            <textarea class="fi2" id="r-mov-ant" placeholder="Escribí acá los movimientos anteriores relevantes del expediente..." style="min-height:100px;"></textarea>
           </div>
         </div>
         <button class="btn btn-primary" onclick="guardarMov()">💾 Guardar movimiento</button>
@@ -507,6 +529,7 @@ function mk(juz,sec,num,car,tipo,cli,contra,prio,est,ulMov,venc,aud,notas,movs) 
 // UTILS
 // ==============================
 function uid() { return Math.random().toString(36).slice(2)+Date.now().toString(36); }
+function applyFmt(cmd, editorId) { document.getElementById(editorId).focus(); document.execCommand(cmd, false, null); }
 function today() { const d=new Date(); return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`; }
 function addDays(n) { const d=new Date(); d.setDate(d.getDate()+n); return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`; }
 function fmt(d) { if(!d)return'—'; const p=d.split('-'); return`${p[2]}/${p[1]}/${p[0]}`; }
@@ -627,6 +650,7 @@ function renderDash() {
               <div style="font-size:13px;font-weight:800;line-height:1.3;margin-bottom:4px;">${e.caratula}</div>
               <div style="display:flex;gap:6px;flex-wrap:wrap;align-items:center;">
                 <span style="font-size:11px;color:var(--muted);">${e.tipo||''}</span>
+                ${e.etapaProcesal?`<span style="font-size:10px;background:#ede9fe;color:#5b21b6;padding:1px 7px;border-radius:4px;font-weight:700;">${e.etapaProcesal}</span>`:''}
                 ${e.numero?`<span style="font-size:10px;background:var(--bg);padding:1px 6px;border-radius:4px;color:var(--muted);">${e.numero}</span>`:''}
               </div>
             </div>
@@ -941,6 +965,8 @@ function openPanel(id) {
   html+=`<div style="margin-bottom:16px;">
     <div style="font-size:11px;font-weight:800;text-transform:uppercase;color:var(--muted);margin-bottom:8px;">Información</div>
     <div class="info-row"><div class="info-lbl">Tipo</div><div class="info-val">${e.tipo||'—'}</div></div>
+    <div class="info-row"><div class="info-lbl">Estado</div><div class="info-val">${badgeEstado(e.estado)}</div></div>
+    ${e.etapaProcesal?`<div class="info-row"><div class="info-lbl">Etapa</div><div class="info-val">${e.etapaProcesal}</div></div>`:''}
     <div class="info-row"><div class="info-lbl">Cliente</div><div class="info-val">${e.cliente||'—'}</div></div>
     <div class="info-row"><div class="info-lbl">Contraparte</div><div class="info-val">${e.contraparte||'—'}</div></div>
     <div class="info-row"><div class="info-lbl">Últ. movimiento</div><div class="info-val">${fmt(e.ultimoMov)} (${daysSince(e.ultimoMov)}d atrás)</div></div>
@@ -1007,6 +1033,7 @@ function openModal(type, id) {
         <div class="fg"><label class="fg-label">Cliente / Parte</label><input type="text" class="fi2" id="m-cli" value="${e?e.cliente:''}"></div>
         <div class="fg"><label class="fg-label">Contraparte</label><input type="text" class="fi2" id="m-contra" value="${e?e.contraparte:''}"></div>
         <div class="fg"><label class="fg-label">Estado</label><select class="fi2" id="m-est">${eOpts}</select></div>
+        <div class="fg"><label class="fg-label">Etapa procesal</label><input type="text" class="fi2" id="m-etapa" placeholder="Ej: Primera instancia, Apelación..." value="${e&&e.etapaProcesal?e.etapaProcesal:''}"></div>
         <div class="fg"><label class="fg-label">Prioridad</label>
           <select class="fi2" id="m-prio">
             <option value="Baja" ${e&&e.prioridad==='Baja'?'selected':''}>🟢 Baja</option>
@@ -1039,6 +1066,7 @@ function saveExp(id) {
       e.numero=document.getElementById('m-num').value.trim(); e.caratula=car;
       e.tipo=document.getElementById('m-tipo').value; e.cliente=document.getElementById('m-cli').value.trim();
       e.contraparte=document.getElementById('m-contra').value.trim(); e.estado=document.getElementById('m-est').value;
+      e.etapaProcesal=document.getElementById('m-etapa').value.trim();
       e.prioridad=document.getElementById('m-prio').value;
       e.vencimiento=document.getElementById('m-venc').value||null;
       e.audiencia=document.getElementById('m-aud').value||null;
@@ -1050,6 +1078,7 @@ function saveExp(id) {
       numero:document.getElementById('m-num').value.trim(), caratula:car,
       tipo:document.getElementById('m-tipo').value, cliente:document.getElementById('m-cli').value.trim(),
       contraparte:document.getElementById('m-contra').value.trim(), estado:document.getElementById('m-est').value,
+      etapaProcesal:document.getElementById('m-etapa').value.trim(),
       prioridad:document.getElementById('m-prio').value, ultimoMov:today(),
       vencimiento:document.getElementById('m-venc').value||null,
       audiencia:document.getElementById('m-aud').value||null,
@@ -1068,6 +1097,8 @@ function saveExp(id) {
 // ==============================
 function renderRegistro() {
   document.getElementById('r-fecha').value=today();
+  const rE=document.getElementById('r-estado');
+  if(rE&&rE.options.length<=1) ESTADOS.forEach(s=>{const o=document.createElement('option');o.value=s;o.textContent=s;rE.appendChild(o);});
   populateRegDropdown();
   renderMovsHoy();
 }
@@ -1085,18 +1116,22 @@ function openRegForExp(id) { nav('registro'); setTimeout(()=>{document.getElemen
 function guardarMov() {
   const eid=document.getElementById('r-exp').value;
   const fecha=document.getElementById('r-fecha').value;
-  const desc=document.getElementById('r-desc').value.trim();
-  const tRaw=document.getElementById('r-tareas').value.trim();
+  const descEl=document.getElementById('r-desc');
+  const desc=(descEl.innerHTML||'').trim();
   const venc=document.getElementById('r-venc').value;
+  const est=document.getElementById('r-estado').value;
   if(!eid){alert('Seleccioná un expediente.');return;}
-  if(!desc){alert('Ingresá la descripción del movimiento.');return;}
+  if(!desc||desc==='<br>'){alert('Ingresá la descripción del movimiento.');return;}
   const e=S.expedientes.find(x=>x.id===eid); if(!e)return;
-  const tareas=tRaw?tRaw.split('\n').map(t=>t.trim()).filter(Boolean):[];
-  e.movimientos.push({id:uid(),fecha:fecha||today(),descripcion:desc,tareas,reg:''});
+  const movAnt=document.getElementById('r-mov-ant').value.trim();
+  e.movimientos.push({id:uid(),fecha:fecha||today(),descripcion:desc,movAnt:movAnt||'',tareas:[],reg:''});
   e.ultimoMov=fecha||today();
   if(venc)e.vencimiento=venc;
+  if(est)e.estado=est;
   save();
-  ['r-exp','r-desc','r-tareas','r-venc'].forEach(id=>{document.getElementById(id).value='';});
+  ['r-exp','r-venc','r-mov-ant'].forEach(id=>{document.getElementById(id).value='';});
+  descEl.innerHTML='';
+  document.getElementById('r-estado').value='';
   renderMovsHoy();
   // Refresh dashboard if it's the active page or set date to sync
   const dashFecha=document.getElementById('dash-fecha');
@@ -1152,6 +1187,8 @@ function renderJuzgados() {
 function editarMovimiento(expId, movId) {
   const e=S.expedientes.find(x=>x.id===expId); if(!e)return;
   const m=e.movimientos.find(x=>x.id===movId); if(!m)return;
+  const estadoOpts=ESTADOS.map(s=>`<option value="${s}" ${e.estado===s?'selected':''}>${s}</option>`).join('');
+  const otrosMov=[...e.movimientos].filter(x=>x.id!==movId).sort((a,b)=>b.fecha.localeCompare(a.fecha));
   document.getElementById('modal-wrap').innerHTML=`
   <div class="overlay" onclick="if(event.target===this)closeModal()">
     <div class="modal">
@@ -1169,13 +1206,26 @@ function editarMovimiento(expId, movId) {
           <label class="fg-label">Vencimiento</label>
           <input type="date" class="fi2" id="em-venc" value="${e.vencimiento||''}">
         </div>
-        <div class="fg full">
-          <label class="fg-label">Descripción del movimiento</label>
-          <textarea class="fi2" id="em-desc" style="min-height:90px;">${m.descripcion}</textarea>
+        <div class="fg">
+          <label class="fg-label">Estado del expediente</label>
+          <select class="fi2" id="em-estado">${estadoOpts}</select>
+        </div>
+        <div class="fg">
+          <label class="fg-label">Etapa procesal</label>
+          <input type="text" class="fi2" id="em-etapa" placeholder="Ej: Primera instancia, Apelación..." value="${e.etapaProcesal||''}">
         </div>
         <div class="fg full">
-          <label class="fg-label">Tareas pendientes (una por línea)</label>
-          <textarea class="fi2" id="em-tareas" style="min-height:80px;">${m.tareas.join('\n')}</textarea>
+          <label class="fg-label">Descripción del movimiento</label>
+          <div class="fmt-toolbar">
+            <button type="button" class="fmt-btn" onclick="applyFmt('bold','em-desc')" title="Negrita"><b>N</b></button>
+            <button type="button" class="fmt-btn" onclick="applyFmt('underline','em-desc')" title="Subrayado"><u>S</u></button>
+            <button type="button" class="fmt-btn" onclick="applyFmt('italic','em-desc')" title="Cursiva"><i>I</i></button>
+          </div>
+          <div class="rich-editor" id="em-desc" contenteditable="true"></div>
+        </div>
+        <div class="fg full">
+          <label class="fg-label">📋 Movimientos anteriores</label>
+          <textarea class="fi2" id="em-mov-ant" style="min-height:80px;" placeholder="Anotá acá movimientos anteriores relevantes...">${m.movAnt||''}</textarea>
         </div>
       </div>
       <div style="margin-top:18px;display:flex;gap:8px;justify-content:space-between;">
@@ -1185,16 +1235,31 @@ function editarMovimiento(expId, movId) {
           <button class="btn btn-primary" onclick="guardarEdicionMov('${expId}','${movId}')">💾 Guardar cambios</button>
         </div>
       </div>
+      ${otrosMov.length?`
+      <div style="margin-top:24px;border-top:1px solid var(--border);padding-top:18px;">
+        <div style="font-size:12px;font-weight:800;text-transform:uppercase;color:var(--muted);margin-bottom:12px;">📋 Movimientos anteriores (${otrosMov.length})</div>
+        ${otrosMov.map(mv=>`
+          <div class="mov-ant-item">
+            <div class="mov-ant-fecha">${fmt(mv.fecha)}</div>
+            <div class="mov-ant-desc">${mv.descripcion||'—'}</div>
+            ${mv.tareas.length?`<div style="margin-top:6px;">${mv.tareas.map(t=>`<div style="font-size:11px;color:var(--warning);margin-top:2px;">→ ${t}</div>`).join('')}</div>`:''}
+            <button class="btn btn-sm btn-outline" style="margin-top:7px;font-size:11px;" onclick="closeModal();editarMovimiento('${expId}','${mv.id}')">✏️ Editar este</button>
+          </div>`).join('')}
+      </div>`:''}
     </div>
   </div>`;
+  // Set rich editor content after DOM is ready
+  document.getElementById('em-desc').innerHTML = m.descripcion || '';
 }
 
 function guardarEdicionMov(expId, movId) {
   const e=S.expedientes.find(x=>x.id===expId); if(!e)return;
   const m=e.movimientos.find(x=>x.id===movId); if(!m)return;
   m.fecha=document.getElementById('em-fecha').value||today();
-  m.descripcion=document.getElementById('em-desc').value.trim();
-  m.tareas=document.getElementById('em-tareas').value.trim().split('\n').map(t=>t.trim()).filter(Boolean);
+  m.descripcion=(document.getElementById('em-desc').innerHTML||'').trim();
+  m.movAnt=document.getElementById('em-mov-ant').value.trim();
+  e.estado=document.getElementById('em-estado').value;
+  e.etapaProcesal=document.getElementById('em-etapa').value.trim();
   const venc=document.getElementById('em-venc').value;
   if(venc)e.vencimiento=venc;
   // Update ultimoMov to latest movement date
