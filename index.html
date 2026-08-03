@@ -209,6 +209,11 @@ textarea.fi2 { resize:vertical; min-height:75px; }
 .mov-ant-item { padding:10px 13px; border-left:3px solid var(--primary-light); background:#f8fafc; border-radius:0 8px 8px 0; margin-bottom:8px; }
 .mov-ant-fecha { font-size:10.5px; font-weight:700; color:var(--muted); margin-bottom:3px; }
 .mov-ant-desc { font-size:12px; color:var(--text); line-height:1.5; }
+.mov-check-row { display:flex; gap:10px; align-items:flex-start; padding:9px 12px; border-bottom:1px solid var(--border); cursor:pointer; transition:background .1s; }
+.mov-check-row:last-child { border-bottom:none; }
+.mov-check-row:hover { background:#eef2ff; }
+.mov-check-row.selected { background:#eef2ff; border-left:3px solid var(--primary); }
+.mov-check-row input[type=checkbox] { margin-top:3px; flex-shrink:0; accent-color:var(--primary); width:15px; height:15px; cursor:pointer; }
 
 /* REGISTRO */
 .reg-card { background:#fff; border-radius:12px; border:1px solid var(--border); padding:20px; margin-bottom:20px; }
@@ -331,7 +336,7 @@ textarea.fi2 { resize:vertical; min-height:75px; }
         <div class="fgrid" style="margin-bottom:14px;">
           <div class="fg full">
             <label class="fg-label">Expediente *</label>
-            <select class="fi2" id="r-exp"><option value="">Seleccionar expediente...</option></select>
+            <select class="fi2" id="r-exp" onchange="loadMovAnterioresReg()"><option value="">Seleccionar expediente...</option></select>
           </div>
           <div class="fg">
             <label class="fg-label">Fecha</label>
@@ -356,7 +361,11 @@ textarea.fi2 { resize:vertical; min-height:75px; }
           </div>
           <div class="fg full">
             <label class="fg-label">📋 Movimientos anteriores</label>
-            <textarea class="fi2" id="r-mov-ant" placeholder="Escribí acá los movimientos anteriores relevantes del expediente..." style="min-height:100px;"></textarea>
+            <div id="r-mov-hist" style="display:none;margin-bottom:8px;">
+              <div style="font-size:11px;color:var(--muted);margin-bottom:6px;">Seleccioná los que quieras incluir en el informe:</div>
+              <div id="r-mov-hist-list" style="max-height:220px;overflow-y:auto;border:1px solid var(--border);border-radius:8px;background:#f8fafc;"></div>
+            </div>
+            <textarea class="fi2" id="r-mov-ant" placeholder="O agregá acá movimientos adicionales en texto libre..." style="min-height:80px;"></textarea>
           </div>
         </div>
         <button class="btn btn-primary" onclick="guardarMov()">💾 Guardar movimiento</button>
@@ -1103,6 +1112,25 @@ function renderRegistro() {
   renderMovsHoy();
 }
 
+function loadMovAnterioresReg() {
+  const eid=document.getElementById('r-exp').value;
+  const histDiv=document.getElementById('r-mov-hist');
+  const listDiv=document.getElementById('r-mov-hist-list');
+  if(!eid){histDiv.style.display='none';return;}
+  const e=S.expedientes.find(x=>x.id===eid);
+  if(!e||!e.movimientos.length){histDiv.style.display='none';return;}
+  histDiv.style.display='';
+  const movs=[...e.movimientos].sort((a,b)=>b.fecha.localeCompare(a.fecha));
+  listDiv.innerHTML=movs.map(m=>`
+    <label class="mov-check-row" onclick="this.classList.toggle('selected')">
+      <input type="checkbox" class="r-mov-check" value="${m.id}">
+      <div style="flex:1;min-width:0;">
+        <div style="font-size:10.5px;font-weight:700;color:var(--muted);margin-bottom:3px;">${fmt(m.fecha)}</div>
+        <div style="font-size:12px;line-height:1.5;color:var(--text);">${m.descripcion||'—'}</div>
+      </div>
+    </label>`).join('');
+}
+
 function populateRegDropdown() {
   const sel=document.getElementById('r-exp'); if(!sel)return;
   const cur=sel.value; while(sel.options.length>1)sel.remove(1);
@@ -1123,8 +1151,14 @@ function guardarMov() {
   if(!eid){alert('Seleccioná un expediente.');return;}
   if(!desc||desc==='<br>'){alert('Ingresá la descripción del movimiento.');return;}
   const e=S.expedientes.find(x=>x.id===eid); if(!e)return;
-  const movAnt=document.getElementById('r-mov-ant').value.trim();
-  e.movimientos.push({id:uid(),fecha:fecha||today(),descripcion:desc,movAnt:movAnt||'',tareas:[],reg:''});
+  // Collect selected previous movements
+  const checkedTexts=[...document.querySelectorAll('.r-mov-check:checked')].map(cb=>{
+    const mv=e.movimientos.find(m=>m.id===cb.value);
+    return mv?`${fmt(mv.fecha)}: ${mv.descripcion||''}`:null;
+  }).filter(Boolean);
+  const movAntManual=document.getElementById('r-mov-ant').value.trim();
+  const movAnt=[...checkedTexts,movAntManual].filter(Boolean).join('\n\n');
+  e.movimientos.push({id:uid(),fecha:fecha||today(),descripcion:desc,movAnt:movAnt,tareas:[],reg:''});
   e.ultimoMov=fecha||today();
   if(venc)e.vencimiento=venc;
   if(est)e.estado=est;
@@ -1132,6 +1166,8 @@ function guardarMov() {
   ['r-exp','r-venc','r-mov-ant'].forEach(id=>{document.getElementById(id).value='';});
   descEl.innerHTML='';
   document.getElementById('r-estado').value='';
+  document.getElementById('r-mov-hist').style.display='none';
+  document.getElementById('r-mov-hist-list').innerHTML='';
   renderMovsHoy();
   // Refresh dashboard if it's the active page or set date to sync
   const dashFecha=document.getElementById('dash-fecha');
