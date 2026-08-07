@@ -795,11 +795,6 @@ function exportarInforme() {
       </div>
     </div>
   </div>
-  <div class="resumen">
-    <div class="res-item"><div class="res-num">${items.length}</div><div class="res-lbl">Expedientes con novedades</div></div>
-    <div class="res-item"><div class="res-num">${totalTareas}</div><div class="res-lbl">Tareas pendientes</div></div>
-    <div class="res-item"><div class="res-num">${juzgadosConMovs.length}</div><div class="res-lbl">Juzgados</div></div>
-  </div>
   ${juzgadosConMovs.map(juz=>`
   <div class="juzgado-header">${juz}</div>
   ${byJuz[juz].map(({exp:e,mov:m})=>`
